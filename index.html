@@ -821,7 +821,80 @@
       }
 
       /* ── Print: hide chrome, show stage ── */
+
+      /* ── WYSIWYG (Typora) — single editing surface ── */
+      #scribe-wysiwyg-toggle[aria-pressed="true"] {
+        background: var(--scribe-accent-bg);
+        border-color: var(--scribe-accent);
+        color: var(--scribe-fg);
+        font-weight: 600;
+      }
+
+      #scribe-wysiwyg-toggle {
+        width: auto !important;
+        padding: 0 10px;
+        font-size: 12px;
+        font-weight: 500;
+        font-family: system-ui, sans-serif;
+        gap: 6px;
+      }
+
+      #scribe-focus-toggle[aria-pressed="true"] {
+        background: var(--scribe-accent-bg);
+        border-color: var(--scribe-accent);
+      }
+
+      #scribe-focus-toggle {
+        width: auto !important;
+        padding: 0 10px;
+        font-size: 12px;
+        font-family: system-ui, sans-serif;
+      }
+
+      #scribe-focus-highlight {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        background: rgba(217, 119, 87, 0.08);
+        border-left: 2px solid var(--scribe-accent);
+        pointer-events: none;
+        z-index: 3;
+        transition:
+          top 120ms cubic-bezier(0.32, 0.72, 0, 1),
+          height 120ms cubic-bezier(0.32, 0.72, 0, 1),
+          opacity 160ms;
+        opacity: 0;
+      }
+
+      #scribe-focus-highlight.is-visible {
+        opacity: 1;
+      }
+
+      #scribe-stage.is-wysiwyg #scribe-split-handle {
+        display: none !important;
+      }
+
+      #scribe-stage.is-wysiwyg #scribe-focus-highlight:not([hidden]) {
+        display: block;
+      }
+
+      html[data-theme="dark"] #scribe-focus-highlight {
+        background: rgba(232, 160, 122, 0.09);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #scribe-focus-highlight {
+          transition: none;
+        }
+      }
+
+      /* Live mode seamless scroll: hide scrollbars clutter when WYSIWYG */
+      #scribe-stage.is-wysiwyg {
+        background: var(--scribe-pane-bg);
+      }
+
       @media print {
+
         #scribe-header,
         #scribe-explorer,
         #scribe-toc,
@@ -1080,8 +1153,28 @@
             $$
           </button>
         </div>
+        <div class="toolbar-group" aria-label="View mode">
+          <button
+            type="button"
+            id="scribe-wysiwyg-toggle"
+            title="Toggle WYSIWYG / Source (Typora)"
+            aria-label="Toggle WYSIWYG mode"
+            aria-pressed="false"
+          >
+            Live
+          </button>
+          <button
+            type="button"
+            id="scribe-focus-toggle"
+            title="Toggle focus mode (highlight current paragraph)"
+            aria-label="Toggle focus mode"
+            aria-pressed="false"
+          >
+            ◎ Focus
+          </button>
+        </div>
         <select
-          id="scribe-theme-picker"
+          id="scribe-theme-picker" 
           aria-label="Markdown theme"
           title="Markdown theme"
         >
@@ -1121,8 +1214,9 @@
         <div id="scribe-stage" aria-label="Editor stage">
           <canvas id="scribe-canvas" aria-label="Scribe editor canvas"></canvas>
           <div id="scribe-a11y-root"></div>
+          <div id="scribe-focus-highlight" aria-hidden="true" hidden></div>
           <div
-            id="scribe-split-handle"
+            id="scribe-split-handle" 
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize editor and preview"
@@ -1139,6 +1233,10 @@
             <label
               ><input type="checkbox" id="scribe-scroll-sync" checked /> Scroll
               sync</label
+            >
+            <label
+              ><input type="checkbox" id="scribe-focus-mode" /> Focus
+              mode</label
             >
             <div style="margin: 12px 0 8px">
               <label
