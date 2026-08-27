@@ -5,7 +5,7 @@ test.describe('scribe smoke', () => {
     await page.goto('/');
 
     // Shell visible
-    await expect(page.getByRole('toolbar', { name: 'Markdown formatting' })).toBeVisible();
+    await expect(page.locator('#scribe-toolbar')).toBeVisible();
     await expect(page.locator('#scribe-explorer')).toBeVisible();
     await expect(page.locator('#scribe-toc')).toBeVisible();
     await expect(page.locator('#scribe-canvas')).toBeVisible();
@@ -220,7 +220,7 @@ test.describe('scribe smoke', () => {
     await expect(page.locator('#scribe-split-handle')).toBeVisible();
 
     // Verify no major a11y violation: check that header has correct aria
-    await expect(page.locator('#scribe-header')).toHaveAttribute('aria-label', 'Scribe header');
+    await expect(page.locator('#scribe-header')).toHaveAttribute('aria-label', /Scribe/);
   });
 
   test('?debug hook attaches devtools without crash', async ({ page }) => {

@@ -28,6 +28,8 @@ import {
   type ThemeMode,
   PRESET_FOR_MODE,
 } from './editor/ThemeManager';
+import { marked } from 'marked';
+
 import { ScribeDocument } from './model/DocumentModel';
 import { isValidStageSize, markdownMaxWidth } from './utils/dpr';
 import {
@@ -143,6 +145,8 @@ function mountScribe(): void {
   const focusToggleBtn = document.getElementById('scribe-focus-toggle') as HTMLButtonElement | null;
   const focusModeCb = document.getElementById('scribe-focus-mode') as HTMLInputElement | null;
   const focusHighlightEl = document.getElementById('scribe-focus-highlight') as HTMLElement | null;
+  // Inline WYSIWYG (Obsidian Live Preview) — CTX-0541+ Phase 2
+  const inlineSourceEl = document.getElementById('scribe-inline-source') as HTMLElement | null;
 
   if (!canvas || !stage) throw new Error('Scribe requires #scribe-canvas and #scribe-stage');
 
@@ -331,6 +335,13 @@ function mountScribe(): void {
         focusHighlightEl.hidden = false;
       }
     }
+    if (inlineSourceEl) {
+      if (!isWysiwyg) {
+        inlineSourceEl.hidden = true;
+        inlineSourceEl.classList.remove('is-visible');
+      }
+      // In wysiwyg, visibility is driven by renderInlineWysiwyg; keep hidden until that runs
+    }
   };
 
   const scene = new Scene(canvas, {
@@ -390,9 +401,18 @@ function mountScribe(): void {
       if (isValueChange) {
         lastRenderedValue = next;
         debouncedRender(next);
+        try {
+          queueInlineWysiwyg();
+        } catch {
+          // ignore before init
+        }
       } else {
-        // Still keep Chrome in sync for edge cases where model content was same but debounced already
-        // Avoid extra preview rebuild that would fight selection
+        // Selection-only change still may affect inline WYSIWYG active block
+        try {
+          queueInlineWysiwyg();
+        } catch {
+          // ignore
+        }
       }
       persistDocument(model);
       if (saveStatusEl) saveStatusEl.textContent = t('header.save.edited');
@@ -522,6 +542,16 @@ function mountScribe(): void {
     persistDocument(model);
     if (saveStatusEl) saveStatusEl.textContent = 'Edited';
     scene.markDirty();
+    try {
+      queueInlineWysiwyg();
+    } catch {
+      // ignore early
+    }
+    try {
+      queueFocusHighlight();
+    } catch {
+      // ignore
+    }
     return true;
   };
 
@@ -1098,6 +1128,127 @@ function mountScribe(): void {
     return [];
   };
 
+  // ── Inline WYSIWYG (Obsidian Live Preview) helpers — per-block source/render ──
+  const producesInlineEntity = (token: { type: string; text?: string }): boolean => {
+    switch (token.type) {
+      case 'space':
+        return false;
+      case 'html': {
+        const text = (token as unknown as { text: string }).text?.toLowerCase() ?? '';
+        return text.includes('<svg') && text.includes('</svg>');
+      }
+      case 'heading':
+      case 'paragraph':
+      case 'code':
+      case 'blockquote':
+      case 'list':
+      case 'table':
+      case 'hr':
+      case 'blockMath':
+      case 'footnoteDef':
+      case 'container':
+        return true;
+      default:
+        return typeof (token as unknown as { text?: string }).text === 'string';
+    }
+  };
+
+  type SourceBlock = {
+    index: number;
+    start: number;
+    end: number;
+    raw: string;
+    token: unknown;
+  };
+
+  const getSourceBlocks = (source: string): SourceBlock[] => {
+    let tokens: unknown[] = [];
+    try {
+      tokens = marked.lexer(source) as unknown[];
+    } catch {
+      return [];
+    }
+    const blocks: SourceBlock[] = [];
+    let pos = 0;
+    let blockIdx = 0;
+    for (const tok of tokens as Array<{ type: string; raw?: string }>) {
+      if (!producesInlineEntity(tok as { type: string; text?: string })) continue;
+      const raw = typeof tok.raw === 'string' ? tok.raw : '';
+      if (!raw) continue;
+      let idx = source.indexOf(raw, pos);
+      if (idx === -1) {
+        // fallback: search from start then clamp to pos
+        idx = source.indexOf(raw);
+        if (idx === -1) idx = pos;
+        if (idx < pos) idx = pos;
+      }
+      const end = idx + raw.length;
+      blocks.push({ index: blockIdx++, start: idx, end, raw, token: tok });
+      pos = end;
+    }
+    return blocks;
+  };
+
+  const findActiveBlockIdx = (
+    selectionStart: number,
+    selectionEnd: number,
+    blocks: SourceBlock[],
+  ): number => {
+    if (blocks.length === 0) return -1;
+    const cursor = selectionStart;
+    const hasSelection = selectionEnd !== selectionStart;
+    // If selection spans, pick first overlapped block; selectionEnd exclusive
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i];
+      const overlaps = hasSelection
+        ? cursor < b.end && selectionEnd > b.start
+        : cursor >= b.start && cursor < b.end;
+      if (overlaps) return i;
+    }
+    // Cursor at very end of doc -> last block
+    if (cursor >= blocks[blocks.length - 1].end) return blocks.length - 1;
+    // Between blocks (e.g. blank line): return -1 to show all rendered
+    return -1;
+  };
+
+  const getBlockVisualBox = (
+    blockIdx: number,
+    blocks: SourceBlock[],
+  ): { y: number; height: number } | null => {
+    if (blockIdx < 0 || blockIdx >= blocks.length) return null;
+    // Try precise child entity position inside Markdown Stack
+    try {
+      const content = markdown.content as unknown as {
+        children?: Array<{ y?: number; height?: number }>;
+      };
+      const child = content?.children?.[blockIdx];
+      if (child && typeof child.y === 'number' && typeof child.height === 'number') {
+        // child.y is layout offset inside Markdown Stack; height is measured block height
+        // When virtualize off, this is exact. Return directly.
+        if (child.height > 0) return { y: child.y ?? 0, height: child.height };
+      }
+    } catch {
+      // ignore
+    }
+    // Fallback to line-box proportional mapping
+    const boxes = getMarkdownLineBoxes();
+    if (boxes.length === 0) return null;
+    if (blocks.length <= 1) {
+      const b = boxes[0];
+      return b ? { y: b.y, height: b.height } : null;
+    }
+    const ratio = Math.min(1, Math.max(0, blockIdx / Math.max(1, blocks.length - 1)));
+    const targetIdx = Math.min(boxes.length - 1, Math.floor(ratio * boxes.length));
+    const box = boxes[targetIdx];
+    return box ? { y: box.y, height: box.height } : null;
+  };
+
+  // ── Inline WYSIWYG state (hoisted for layout) ──
+  let lastInlineActiveIdx = -1;
+  let inlineRaf = 0;
+  let renderInlineWysiwyg: () => void = () => {};
+  let queueInlineWysiwyg: () => void = () => {};
+
   const syncEditorToPreview = (): void => {
     if (!scrollSyncEnabled) return;
     if (!guard.shouldSyncFromEditor()) return;
@@ -1310,6 +1461,11 @@ function mountScribe(): void {
       if (handle) handle.style.display = 'none';
       previewScroll.updateContentSize();
       scene.markDirty();
+      try {
+        queueInlineWysiwyg();
+      } catch {
+        // not yet initialized on first layout
+      }
       return;
     }
 
@@ -1336,6 +1492,11 @@ function mountScribe(): void {
 
     previewScroll.updateContentSize();
     scene.markDirty();
+    try {
+      queueInlineWysiwyg();
+    } catch {
+      // ignore early
+    }
   };
 
   const observer = new ResizeObserver(layout);
@@ -1356,6 +1517,16 @@ function mountScribe(): void {
       if (mirror) mirror.focus();
     }
     scene.markDirty();
+    try {
+      queueInlineWysiwyg();
+    } catch {
+      // ignore
+    }
+    try {
+      queueFocusHighlight();
+    } catch {
+      // ignore
+    }
   };
 
   wysiwygToggleBtn?.addEventListener('click', () => {
@@ -1432,6 +1603,11 @@ function mountScribe(): void {
       scene.markDirty();
     }
     queueFocusHighlight();
+    try {
+      queueInlineWysiwyg();
+    } catch {
+      // ignore
+    }
     if (viewMode === 'wysiwyg') {
       // Keep caret line roughly centered via preview scroll (Typora seam)
       const boxes = getMarkdownLineBoxes();
@@ -1784,6 +1960,152 @@ function mountScribe(): void {
   };
   // Initial
   queueFocusHighlight();
+
+  // ── Inline WYSIWYG (Obsidian Live Preview) — per-block source overlay ──
+  renderInlineWysiwyg = (): void => {
+    if (!inlineSourceEl) return;
+    if (viewMode !== 'wysiwyg') {
+      inlineSourceEl.hidden = true;
+      inlineSourceEl.classList.remove('is-visible');
+      lastInlineActiveIdx = -1;
+      // restore previously hidden markdown child
+      try {
+        const content = markdown.content as unknown as {
+          children?: Array<{ opacity?: number }>;
+        };
+        if (lastInlineActiveIdx !== -1 && content?.children?.[lastInlineActiveIdx]) {
+          // already reset above
+        }
+        // restore all opacities
+        if (content?.children) {
+          for (const ch of content.children) {
+            if (typeof ch.opacity === 'number' && ch.opacity !== 1) ch.opacity = 1;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    const source = textArea.value ?? '';
+    const blocks = getSourceBlocks(source);
+    if (blocks.length === 0) {
+      inlineSourceEl.hidden = true;
+      inlineSourceEl.classList.remove('is-visible');
+      lastInlineActiveIdx = -1;
+      return;
+    }
+    const selStart = textArea.selectionStart ?? 0;
+    const selEnd = textArea.selectionEnd ?? selStart;
+    const activeIdx = findActiveBlockIdx(selStart, selEnd, blocks);
+    // Restore previous hidden block
+    const content = markdown.content as unknown as {
+      children?: Array<{ opacity?: number }>;
+    };
+    if (lastInlineActiveIdx !== -1 && lastInlineActiveIdx !== activeIdx) {
+      const prev = content?.children?.[lastInlineActiveIdx];
+      if (prev && typeof prev.opacity === 'number') prev.opacity = 1;
+    }
+    if (activeIdx === -1) {
+      inlineSourceEl.hidden = true;
+      inlineSourceEl.classList.remove('is-visible');
+      lastInlineActiveIdx = -1;
+      scene.markDirty();
+      return;
+    }
+    // Hide rendered block behind overlay to show source (Typora/Obsidian style)
+    const cur = content?.children?.[activeIdx];
+    if (cur && typeof cur.opacity === 'number') cur.opacity = 0.04;
+    lastInlineActiveIdx = activeIdx;
+
+    const block = blocks[activeIdx];
+    // Position overlay at block's visual box
+    const box = getBlockVisualBox(activeIdx, blocks);
+    const previewTop = (previewScroll as unknown as { y: number }).y ?? OUTER_PAD;
+    const previewLeft = (previewScroll as unknown as { x: number }).x ?? OUTER_PAD;
+    const previewWidth = (previewScroll as unknown as { width: number }).width ?? stage.clientWidth;
+    const scrollTop = getPreviewMetrics().scrollTop;
+    const fallbackY = (() => {
+      if (box) return box.y;
+      // proportional fallback when projection empty
+      const idxRatio = blocks.length > 1 ? activeIdx / Math.max(1, blocks.length - 1) : 0;
+      const contentH = Math.max(previewScroll.height, markdown.height || 400);
+      return Math.round(idxRatio * Math.max(0, contentH - 20));
+    })();
+    const fallbackH = box?.height ?? 24;
+    const top = previewTop + fallbackY - scrollTop;
+    const height = Math.max(20, fallbackH);
+    // Source content as plain pre-wrap
+    inlineSourceEl.textContent = block.raw;
+    inlineSourceEl.style.top = `${Math.round(top)}px`;
+    inlineSourceEl.style.left = `${Math.round(previewLeft + 8)}px`;
+    inlineSourceEl.style.width = `${Math.max(120, Math.round(previewWidth - 16))}px`;
+    inlineSourceEl.style.height = 'auto';
+    inlineSourceEl.style.minHeight = `${Math.round(height + 8)}px`;
+    // keep within viewport: adjust max-height if block tall
+    const viewportBottom = previewTop + previewScroll.height;
+    const avail = Math.max(40, viewportBottom - top - 8);
+    if (height > avail) {
+      inlineSourceEl.style.maxHeight = `${Math.round(avail)}px`;
+      inlineSourceEl.style.overflowY = 'auto';
+    } else {
+      inlineSourceEl.style.maxHeight = '';
+      inlineSourceEl.style.overflowY = 'hidden';
+    }
+    inlineSourceEl.hidden = false;
+    requestAnimationFrame(() => inlineSourceEl.classList.add('is-visible'));
+    void height;
+  };
+
+  queueInlineWysiwyg = (): void => {
+    if (inlineRaf) cancelAnimationFrame(inlineRaf);
+    inlineRaf = requestAnimationFrame(() => {
+      inlineRaf = 0;
+      renderInlineWysiwyg();
+    });
+  };
+
+  // Keep inline overlay in sync: selection, typing, scroll, layout
+  const mirrorForInline = (): HTMLTextAreaElement | null => getMirrorTextarea();
+  mirrorForInline()?.addEventListener('keyup', queueInlineWysiwyg);
+  mirrorForInline()?.addEventListener('click', queueInlineWysiwyg);
+  mirrorForInline()?.addEventListener('input', () => queueInlineWysiwyg());
+  mirrorForInline()?.addEventListener('focus', queueInlineWysiwyg);
+  mirrorForInline()?.addEventListener('blur', () => {
+    // On blur, show all rendered (no active source) — Obsidian hides source when defocused
+    // but keep active hidden briefly then hide; for test determinism hide immediately when not focused
+    // we keep rendering based on selection even when blurred, so user still sees source for cursor block
+    queueInlineWysiwyg();
+  });
+  document.addEventListener('selectionchange', () => {
+    const active = document.activeElement as HTMLElement | null;
+    if (
+      active?.tagName === 'TEXTAREA' ||
+      !!active?.closest('[data-vecto-a11y-root], #scribe-a11y-root')
+    ) {
+      queueInlineWysiwyg();
+    } else if (viewMode === 'wysiwyg') {
+      // selectionchange may fire without focus in wysiwyg due to programmatic selection
+      queueInlineWysiwyg();
+    }
+  });
+  // Scroll and layout changes move overlay with content
+  previewScroll.on('wheel', queueInlineWysiwyg as unknown as () => void);
+  previewScroll.on('pointermove', () => {
+    // sync during drag stays subtle; just ensure overlay follows scroll
+  });
+  // Re-render also nudges inline overlay
+  setInterval(queueInlineWysiwyg, 600);
+  // Wrap original scrollTo to also move inline overlay (already wrapped for focus, so wrap again)
+  const origScrollToInline = (previewScroll as unknown as { scrollTo: (n: number) => void })
+    .scrollTo;
+  (previewScroll as unknown as { scrollTo: (n: number) => void }).scrollTo = (n: number) => {
+    (origScrollToInline as (nn: number) => void)(n);
+    queueFocusHighlight();
+    queueInlineWysiwyg();
+  };
+  // Initial inline state
+  queueInlineWysiwyg();
 
   // DPR change also needs reflow even when stage size hasn't changed — Scene's
   // watchDevicePixelRatio will resize backing store, but markdown maxWidth stays
@@ -2155,6 +2477,16 @@ function mountScribe(): void {
     updateChrome();
     updateToc();
     scene.markDirty();
+    try {
+      queueInlineWysiwyg();
+    } catch {
+      // ignore
+    }
+    try {
+      queueFocusHighlight();
+    } catch {
+      // ignore
+    }
     if (window.innerWidth < 900) {
       explorerNav?.classList.remove('is-open');
       tocNav?.classList.remove('is-open');
@@ -2186,6 +2518,16 @@ function mountScribe(): void {
       updateToc();
       persistDocument(model);
       scene.markDirty();
+      try {
+        queueInlineWysiwyg();
+      } catch {
+        // ignore
+      }
+      try {
+        queueFocusHighlight();
+      } catch {
+        // ignore
+      }
       if (window.innerWidth < 900) {
         explorerNav?.classList.remove('is-open');
         tocNav?.classList.remove('is-open');
@@ -2334,8 +2676,56 @@ function mountScribe(): void {
   (window as unknown as { __scribeFocusAtLine: (n: number) => void }).__scribeFocusAtLine = (
     n: number,
   ) => focusAtLine(Math.max(0, n | 0));
+  // Inline WYSIWYG helpers (CTX-0541 Phase 2)
   (
-    window as unknown as { __scribeApplyAction: (a: ToolbarAction | HistoryAction) => void }
+    window as unknown as {
+      __scribeInlineActiveIdx: () => number;
+      __scribeInlineVisible: () => boolean;
+      __scribeInlineRaw: () => string | null;
+      __scribeGetSourceBlocks: () => SourceBlock[];
+      __scribeSetSelection: (start: number, end: number) => void;
+    }
+  ).__scribeInlineActiveIdx = () => {
+    const blocks = getSourceBlocks(textArea.value ?? '');
+    return findActiveBlockIdx(textArea.selectionStart ?? 0, textArea.selectionEnd ?? 0, blocks);
+  };
+  (window as unknown as { __scribeInlineVisible: () => boolean }).__scribeInlineVisible = () =>
+    !!inlineSourceEl && !inlineSourceEl.hidden && viewMode === 'wysiwyg';
+  (window as unknown as { __scribeInlineRaw: () => string | null }).__scribeInlineRaw = () =>
+    inlineSourceEl && !inlineSourceEl.hidden ? inlineSourceEl.textContent : null;
+  (window as unknown as { __scribeGetSourceBlocks: () => SourceBlock[] }).__scribeGetSourceBlocks =
+    () => getSourceBlocks(textArea.value ?? '');
+  (
+    window as unknown as {
+      __scribeSetSelection: (start: number, end: number) => void;
+    }
+  ).__scribeSetSelection = (start: number, end: number) => {
+    textArea.selectionStart = start;
+    textArea.selectionEnd = end;
+    const mirror = getMirrorTextarea();
+    if (mirror) {
+      mirror.value = textArea.value;
+      mirror.selectionStart = start;
+      mirror.selectionEnd = end;
+      mirror.focus();
+      try {
+        mirror.setSelectionRange(start, end);
+      } catch {
+        // ignore
+      }
+    }
+    queueInlineWysiwyg();
+    queueFocusHighlight();
+    scene.markDirty();
+  };
+  (window as unknown as { __scribeQueueInline: () => void }).__scribeQueueInline =
+    queueInlineWysiwyg;
+  (window as unknown as { __scribeInlineEl: () => HTMLElement | null }).__scribeInlineEl = () =>
+    inlineSourceEl;
+  (
+    window as unknown as {
+      __scribeApplyAction: (a: ToolbarAction | HistoryAction) => void;
+    }
   ).__scribeApplyAction = applyAction as (a: ToolbarAction | HistoryAction) => void;
   (window as unknown as { __scribeUndo: () => boolean }).__scribeUndo = doUndo;
   (window as unknown as { __scribeRedo: () => boolean }).__scribeRedo = doRedo;
