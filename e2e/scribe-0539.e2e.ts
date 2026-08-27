@@ -140,12 +140,15 @@ test.describe('scribe CTX-0539 — collapsible explorer, theme picker, kitchen s
         'Solarized Dark',
       ]),
     );
-    // Settings picker also visible when settings open on desktop
+    // Settings picker is inside modal — open it first (Obsidian-style)
     await page.setViewportSize({ width: 1200, height: 800 });
     await page.waitForTimeout(300);
-    // Settings panel is inline on desktop, so settings picker should be visible (or at least attached)
     const settingsPicker = page.locator('#scribe-settings-theme-picker');
     await expect(settingsPicker).toBeAttached();
+    // Open settings modal to interact with its picker
+    await page.locator('#scribe-settings-toggle').click();
+    await expect(page.locator('#scribe-settings')).toBeVisible();
+    await expect(settingsPicker).toBeVisible();
     // Change via toolbar picker
     await picker.selectOption('dracula');
     await page.waitForTimeout(300);
@@ -155,7 +158,7 @@ test.describe('scribe CTX-0539 — collapsible explorer, theme picker, kitchen s
       document.documentElement.getAttribute('data-theme'),
     );
     expect(dataTheme).toBe('dark');
-    // Change via settings picker
+    // Change via settings picker (still open)
     await settingsPicker.selectOption('githubLight');
     await page.waitForTimeout(300);
     const stored2 = await page.evaluate(() =>
@@ -166,6 +169,9 @@ test.describe('scribe CTX-0539 — collapsible explorer, theme picker, kitchen s
       document.documentElement.getAttribute('data-theme'),
     );
     expect(dataTheme2).toBe('light');
+    // Close settings via Escape so toggle button is accessible
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
     // Toggle button still works (light -> dark)
     const toggle = page.locator('#scribe-theme-toggle');
     await expect(toggle).toBeVisible();

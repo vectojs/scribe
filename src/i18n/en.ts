@@ -92,6 +92,7 @@ export const en = {
   // settings
   'settings.title': 'Settings',
   'settings.navLabel': 'Settings',
+  'settings.close': 'Close settings',
   'settings.livePreview': 'Live preview',
   'settings.scrollSync': 'Scroll sync',
   'settings.focusMode': 'Focus mode',

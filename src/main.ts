@@ -116,13 +116,16 @@ function mountScribe(): void {
   const exportMdBtn = document.getElementById('scribe-export-md') as HTMLElement | null;
   const exportHtmlBtn = document.getElementById('scribe-export-html') as HTMLElement | null;
   const exportPdfBtn = document.getElementById('scribe-export-pdf') as HTMLElement | null;
-  // Responsive shell hamburger/drawer hooks (CTX-0536)
+  // Responsive shell hamburger/drawer hooks (CTX-0536) — explorer/toc drawers + settings modal (CTX-0543)
   const menuToggle = document.getElementById('scribe-menu-toggle') as HTMLButtonElement | null;
   const settingsToggle = document.getElementById(
     'scribe-settings-toggle',
   ) as HTMLButtonElement | null;
   const backdrop = document.getElementById('scribe-backdrop') as HTMLElement | null;
-  const settingsPanel = document.getElementById('scribe-settings') as HTMLElement | null;
+  const settingsPanel = document.getElementById('scribe-settings') as HTMLDialogElement | null;
+  const settingsCloseBtn = document.getElementById(
+    'scribe-settings-close',
+  ) as HTMLButtonElement | null;
 
   // Collapse + theme picker hooks (CTX-0539)
   const toggleExplorerBtn = document.getElementById(
@@ -840,11 +843,21 @@ function mountScribe(): void {
     if (canvasEl) canvasEl.setAttribute('aria-label', t('stage.canvasLabel', locale));
     const handleEl = document.getElementById('scribe-split-handle') as HTMLElement | null;
     if (handleEl) handleEl.setAttribute('aria-label', t('stage.splitHandle.label', locale));
-    if (settingsPanel) settingsPanel.setAttribute('aria-label', t('settings.navLabel', locale));
-    // settings headings and labels
-    const settingsH2s = settingsPanel ? Array.from(settingsPanel.querySelectorAll('h2')) : [];
-    if (settingsH2s[0]) settingsH2s[0].textContent = t('settings.title', locale);
-    if (settingsH2s[1]) settingsH2s[1].textContent = t('settings.export.title', locale);
+    if (settingsPanel) {
+      settingsPanel.setAttribute('aria-label', t('settings.navLabel', locale));
+      const titleEl = document.getElementById('scribe-settings-title') as HTMLElement | null;
+      if (titleEl) titleEl.textContent = t('settings.title', locale);
+      // body export heading is within .scribe-settings__body
+      const bodyH2s = settingsPanel.querySelectorAll('.scribe-settings__body h2');
+      if (bodyH2s[1]) (bodyH2s[1] as HTMLElement).textContent = t('settings.export.title', locale);
+      // fallback for legacy: also ensure any h2 in dialog gets correct title if titleEl missing
+      const fallbackH2s = Array.from(settingsPanel.querySelectorAll('h2'));
+      if (!titleEl && fallbackH2s[0]) fallbackH2s[0].textContent = t('settings.title', locale);
+    }
+    if (settingsCloseBtn) {
+      settingsCloseBtn.setAttribute('aria-label', t('settings.close', locale));
+      settingsCloseBtn.title = t('settings.close', locale);
+    }
     const liveLabel = livePreviewCb?.parentElement as HTMLElement | null;
     if (liveLabel) {
       const input = liveLabel.querySelector('input');
@@ -2518,7 +2531,6 @@ function mountScribe(): void {
     if (window.innerWidth < 900) {
       explorerNav?.classList.remove('is-open');
       tocNav?.classList.remove('is-open');
-      settingsPanel?.classList.remove('is-open');
       if (backdrop) backdrop.hidden = true;
       document.body.style.overflow = '';
     }
@@ -2559,7 +2571,6 @@ function mountScribe(): void {
       if (window.innerWidth < 900) {
         explorerNav?.classList.remove('is-open');
         tocNav?.classList.remove('is-open');
-        settingsPanel?.classList.remove('is-open');
         if (backdrop) backdrop.hidden = true;
         document.body.style.overflow = '';
       }
@@ -2599,27 +2610,47 @@ function mountScribe(): void {
   updateChrome();
   updateToc();
 
-  // --- Responsive drawer logic (<900 overlay, <640 hamburger) — CTX-0536 ---
+  // --- Responsive drawer logic (<900 overlay) — explorer/toc drawers; settings is modal (CTX-0543) ---
   const isOverlay = (): boolean => window.innerWidth < 900;
+
+  const isSettingsOpen = (): boolean => {
+    if (!settingsPanel) return false;
+    const dlg = settingsPanel as unknown as HTMLDialogElement;
+    if (typeof dlg.open === 'boolean')
+      return dlg.open || settingsPanel.classList.contains('is-open');
+    return settingsPanel.classList.contains('is-open') || !settingsPanel.hasAttribute('hidden');
+  };
+
+  const getFocusableInSettings = (): HTMLElement[] => {
+    if (!settingsPanel) return [];
+    const selectors =
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    return Array.from(settingsPanel.querySelectorAll<HTMLElement>(selectors)).filter(
+      (el) => el.offsetParent !== null || el === (settingsPanel as unknown as Element),
+    );
+  };
 
   const syncDrawerA11y = (): void => {
     const explorerOpen = explorerNav?.classList.contains('is-open') ?? false;
     const tocOpen = tocNav?.classList.contains('is-open') ?? false;
-    const settingsOpen = settingsPanel?.classList.contains('is-open') ?? false;
     if (menuToggle) menuToggle.setAttribute('aria-expanded', String(explorerOpen || tocOpen));
-    if (settingsToggle) settingsToggle.setAttribute('aria-expanded', String(settingsOpen));
-    const anyOpen = explorerOpen || tocOpen || settingsOpen;
+    if (settingsToggle) settingsToggle.setAttribute('aria-expanded', String(isSettingsOpen()));
+    const anyDrawerOpen = explorerOpen || tocOpen;
     if (backdrop) {
-      backdrop.hidden = !anyOpen || !isOverlay();
-      backdrop.setAttribute('aria-hidden', String(!anyOpen));
+      backdrop.hidden = !anyDrawerOpen || !isOverlay();
+      backdrop.setAttribute('aria-hidden', String(!anyDrawerOpen));
     }
-    document.body.style.overflow = anyOpen && isOverlay() ? 'hidden' : '';
+    const settingsModalOpen = isSettingsOpen();
+    if (settingsModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = anyDrawerOpen && isOverlay() ? 'hidden' : '';
+    }
   };
 
   const closeDrawers = (): void => {
     explorerNav?.classList.remove('is-open');
     tocNav?.classList.remove('is-open');
-    settingsPanel?.classList.remove('is-open');
     syncDrawerA11y();
   };
 
@@ -2627,35 +2658,124 @@ function mountScribe(): void {
     const willOpen = !(explorerNav?.classList.contains('is-open') ?? false);
     explorerNav?.classList.toggle('is-open', willOpen);
     if (willOpen && window.innerWidth < 640) {
-      settingsPanel?.classList.remove('is-open');
       tocNav?.classList.remove('is-open');
     }
     syncDrawerA11y();
   };
 
-  const toggleSettings = (): void => {
-    const willOpen = !(settingsPanel?.classList.contains('is-open') ?? false);
-    settingsPanel?.classList.toggle('is-open', willOpen);
-    if (willOpen && window.innerWidth < 640) {
-      explorerNav?.classList.remove('is-open');
-      tocNav?.classList.remove('is-open');
+  const openSettings = (): void => {
+    if (!settingsPanel) return;
+    explorerNav?.classList.remove('is-open');
+    tocNav?.classList.remove('is-open');
+    if (backdrop) backdrop.hidden = true;
+    const dlg = settingsPanel as unknown as HTMLDialogElement;
+    if (typeof dlg.showModal === 'function') {
+      try {
+        if (!dlg.open) dlg.showModal();
+      } catch {
+        settingsPanel.classList.add('is-open');
+        settingsPanel.removeAttribute('hidden');
+        settingsPanel.setAttribute('open', '');
+      }
+    } else {
+      settingsPanel.classList.add('is-open');
+      settingsPanel.removeAttribute('hidden');
+      settingsPanel.setAttribute('open', '');
     }
+    settingsToggle?.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
     syncDrawerA11y();
+    requestAnimationFrame(() => {
+      const focusables = getFocusableInSettings();
+      const preferred = settingsCloseBtn ?? focusables[0] ?? settingsPanel;
+      (preferred as unknown as HTMLElement)?.focus?.();
+    });
+  };
+
+  const closeSettings = (): void => {
+    if (!settingsPanel) return;
+    const dlg = settingsPanel as unknown as HTMLDialogElement;
+    if (typeof dlg.close === 'function' && dlg.open) {
+      try {
+        dlg.close();
+      } catch {
+        settingsPanel.classList.remove('is-open');
+        settingsPanel.removeAttribute('open');
+        settingsPanel.setAttribute('hidden', '');
+      }
+    } else {
+      settingsPanel.classList.remove('is-open');
+      settingsPanel.removeAttribute('open');
+      if (!(dlg as unknown as { open?: boolean }).open) {
+        // ensure hidden for fallback div
+        try {
+          if (!settingsPanel.hasAttribute('open')) {
+            // dialog closed; keep hidden state consistent — :not([open]) CSS will hide
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    settingsToggle?.setAttribute('aria-expanded', 'false');
+    const anyDrawerOpen =
+      (explorerNav?.classList.contains('is-open') ?? false) ||
+      (tocNav?.classList.contains('is-open') ?? false);
+    document.body.style.overflow = anyDrawerOpen && isOverlay() ? 'hidden' : '';
+    syncDrawerA11y();
+    settingsToggle?.focus();
   };
 
   menuToggle?.addEventListener('click', toggleExplorer);
-  settingsToggle?.addEventListener('click', toggleSettings);
+  settingsToggle?.addEventListener('click', () => {
+    if (isSettingsOpen()) closeSettings();
+    else openSettings();
+  });
+  settingsCloseBtn?.addEventListener('click', closeSettings);
+
   backdrop?.addEventListener('click', closeDrawers);
+
+  settingsPanel?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (target === settingsPanel) closeSettings();
+  });
+  settingsPanel?.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    closeSettings();
+  });
+  settingsPanel?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const focusables = getFocusableInSettings();
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey) {
+      if (active === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      const anyOpen =
+      if (isSettingsOpen()) {
+        e.preventDefault();
+        closeSettings();
+        return;
+      }
+      const anyDrawerOpen =
         (explorerNav?.classList.contains('is-open') ?? false) ||
-        (tocNav?.classList.contains('is-open') ?? false) ||
-        (settingsPanel?.classList.contains('is-open') ?? false);
-      if (anyOpen) {
+        (tocNav?.classList.contains('is-open') ?? false);
+      if (anyDrawerOpen) {
         closeDrawers();
-        (menuToggle ?? settingsToggle)?.focus();
+        menuToggle?.focus();
       }
     }
   });
@@ -3179,6 +3299,13 @@ function mountScribe(): void {
   (
     window as unknown as { __scribeHandleFileSwitch: (id: string) => void }
   ).__scribeHandleFileSwitch = handleFileSwitch;
+
+  // Settings modal helpers for e2e (CTX-0543)
+  (window as unknown as { __scribeSettingsOpen: () => boolean }).__scribeSettingsOpen =
+    isSettingsOpen;
+  (window as unknown as { __scribeOpenSettings: () => void }).__scribeOpenSettings = openSettings;
+  (window as unknown as { __scribeCloseSettings: () => void }).__scribeCloseSettings =
+    closeSettings;
 
   const maybeAttachDevtools = async (): Promise<void> => {
     if (!new URLSearchParams(window.location.search).has('debug')) return;

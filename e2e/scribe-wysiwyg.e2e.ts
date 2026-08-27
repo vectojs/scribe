@@ -305,10 +305,15 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     await focusBtn.click();
     await page.waitForTimeout(400);
     await expect(focusBtn).toHaveAttribute('aria-pressed', 'true');
-    // Settings checkbox should sync
+    // Open settings to inspect synced checkbox (modal)
+    await page.locator('#scribe-settings-toggle').click();
+    await expect(page.locator('#scribe-settings')).toBeVisible();
     await expect(page.locator('#scribe-focus-mode')).toBeChecked();
     const stored = await page.evaluate(() => window.localStorage.getItem('scribe:focus-mode-v1'));
     expect(stored).toBe('true');
+    // close settings
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
 
     // Highlight should now be visible (even if at 0) — wait a bit for projection fallback
     await page.waitForTimeout(600);
@@ -317,8 +322,11 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     expect(box).not.toBeNull();
     if (box) expect(box.height).toBeGreaterThan(10);
 
-    // Toggle via settings checkbox
+    // Toggle via settings checkbox — reopen modal
+    await page.locator('#scribe-settings-toggle').click();
+    await expect(page.locator('#scribe-settings')).toBeVisible();
     const cb = page.locator('#scribe-focus-mode');
+    await expect(cb).toBeVisible();
     await cb.uncheck();
     await page.waitForTimeout(300);
     await expect(highlight).toBeHidden();
@@ -326,6 +334,8 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     await cb.check();
     await page.waitForTimeout(600);
     await expect(highlight).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
   });
 
   test('responsive: WYSIWYG toggle still works at 390 and 2560', async ({ page }) => {
