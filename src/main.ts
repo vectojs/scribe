@@ -31,7 +31,7 @@ import {
 import { marked } from 'marked';
 
 import { ScribeDocument } from './model/DocumentModel';
-import { isValidStageSize, markdownMaxWidth } from './utils/dpr';
+import { centeredPaneWidth, centeredPaneX, isValidStageSize, markdownMaxWidth } from './utils/dpr';
 import {
   LEGACY_KEY,
   STORAGE_KEY,
@@ -349,10 +349,14 @@ function mountScribe(): void {
     maxDPR: 3,
   });
 
-  // Layout constants — mainstream spacing
+  // Layout constants — mainstream spacing + centered reading column (Obsidian/Typora)
   const OUTER_PAD = 16;
   const GAP = 8;
   const HANDLE_W = 8;
+  // Obsidian/Typora centered layout: max 800-900 with balanced side gutters
+  const CENTERED_MAX_WIDTH = 860;
+  const CENTERED_GUTTER_MIN = 12;
+  const MARKDOWN_INNER_PAD = 32;
 
   // Split ratio persisted in localStorage
   const SPLIT_KEY = 'scribe:split-ratio-v1';
@@ -1436,6 +1440,7 @@ function mountScribe(): void {
   // Resize + split layout — DPR-aware: delegates backing-store to Scene.resize
   // (CanvasRenderer.resize: Math.round(css*dpr) max(1), NaN/Infinity→1) and guards
   // 0-height transient from iOS Safari URL-bar collapse.
+  // Centered reading column (Obsidian/Typora): max 860, balanced gutters, mobile responsive.
   const layout = (): void => {
     const w = stage.clientWidth;
     const h = stage.clientHeight;
@@ -1447,17 +1452,30 @@ function mountScribe(): void {
     const availH = Math.max(200, h);
     const paneH = availH - 2 * OUTER_PAD;
 
+    // Responsive gutter matches CSS --scribe-centered-gutter (12/16/20/24)
+    const responsiveGutter = (() => {
+      if (availW <= 390) return 12;
+      if (availW <= 640) return 16;
+      if (availW <= 1024) return 20;
+      return 24;
+    })();
+    const gutter = Math.max(CENTERED_GUTTER_MIN, responsiveGutter);
+
     if (viewMode === 'wysiwyg') {
-      // Typora single surface: hide TextArea offscreen, preview fills stage
+      // Typora single surface: centered with max 860, balanced gutters
       textArea.width = 1;
       textArea.height = 1;
       textArea.x = -10000;
       textArea.y = -10000;
-      previewScroll.width = Math.max(200, availW - 2 * OUTER_PAD);
+      // Obsidian/Typora centered: cap width, gutters grow equally on wide screens,
+      // shrink to responsive gutter min on mobile (390px => 366 width, 12px gutters)
+      const idealW = Math.min(CENTERED_MAX_WIDTH, Math.max(320, availW - 2 * gutter));
+      const centeredX = Math.max(gutter, Math.round((availW - idealW) / 2));
+      previewScroll.width = idealW;
       previewScroll.height = paneH;
-      previewScroll.x = OUTER_PAD;
+      previewScroll.x = centeredX;
       previewScroll.y = OUTER_PAD;
-      markdown.setMaxWidth(Math.max(200, previewScroll.width - 32));
+      markdown.setMaxWidth(Math.max(200, idealW - MARKDOWN_INNER_PAD));
       if (handle) handle.style.display = 'none';
       previewScroll.updateContentSize();
       scene.markDirty();
@@ -1469,20 +1487,27 @@ function mountScribe(): void {
       return;
     }
 
+    // Source split: each pane centers its content with same max, balanced gutters.
+    // Keeps DPR/mobile: on narrow (390) panes fill with responsive gutters; on wide
+    // (2560 collapsed) gutters expand to center 860 column inside each pane.
     const editorW = Math.round((availW - GAP - HANDLE_W) * splitRatio);
-    const previewW = Math.max(200, availW - editorW - GAP - HANDLE_W);
+    const previewW = Math.max(120, availW - editorW - GAP - HANDLE_W);
 
-    textArea.width = Math.max(200, editorW - OUTER_PAD);
+    const editorContentW = centeredPaneWidth(editorW, gutter, CENTERED_MAX_WIDTH);
+    const editorX = centeredPaneX(editorW, editorContentW);
+    textArea.width = editorContentW;
     textArea.height = paneH;
-    textArea.x = OUTER_PAD;
+    textArea.x = editorX;
     textArea.y = OUTER_PAD;
 
-    previewScroll.width = previewW;
+    const previewContentW = centeredPaneWidth(previewW, gutter, CENTERED_MAX_WIDTH);
+    const previewGutter = centeredPaneX(previewW, previewContentW);
+    previewScroll.width = previewContentW;
     previewScroll.height = paneH;
-    previewScroll.x = editorW + GAP + HANDLE_W;
+    previewScroll.x = editorW + GAP + HANDLE_W + previewGutter;
     previewScroll.y = OUTER_PAD;
 
-    markdown.setMaxWidth(Math.max(200, previewW - 32));
+    markdown.setMaxWidth(Math.max(200, previewContentW - MARKDOWN_INNER_PAD));
 
     if (handle) {
       const handleX = editorW + GAP;

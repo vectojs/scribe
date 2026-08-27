@@ -113,7 +113,15 @@ describe('dpr helpers', () => {
     expect(markdownMaxWidth(390)).toBe(358);
     expect(markdownMaxWidth(320)).toBe(320);
     expect(markdownMaxWidth(200)).toBe(320);
-    expect(markdownMaxWidth(1024)).toBe(992);
+    expect(markdownMaxWidth(1024)).toBe(860);
+    expect(markdownMaxWidth(2560)).toBe(860);
+    expect(markdownMaxWidth(900)).toBe(860);
     expect(markdownMaxWidth(NaN)).toBe(320);
+  });
+
+  test('markdownMaxWidth caps at centered 860 (Obsidian/Typora)', () => {
+    expect(markdownMaxWidth(1200)).toBe(860);
+    expect(markdownMaxWidth(1920)).toBe(860);
+    expect(markdownMaxWidth(400)).toBe(368);
   });
 });

@@ -485,6 +485,9 @@
         overflow: hidden;
         background: var(--scribe-bg);
         touch-action: pan-y;
+        /* Obsidian/Typora centered reading column — max 860, balanced gutters */
+        --scribe-centered-max: 860px;
+        --scribe-centered-gutter: 24px;
       }
 
       #scribe-canvas {
@@ -498,12 +501,38 @@
         inset: 0;
         overflow: hidden;
         pointer-events: none;
+        /* scroll containers: keep momentum and stable gutter during centered layout */
+        scrollbar-gutter: stable;
+        overscroll-behavior: contain;
       }
 
       #scribe-a11y-root [data-vecto-content] {
         pointer-events: auto;
         touch-action: pan-y;
         user-select: text;
+        /* centered reading column lives in canvas coords; a11y mirror follows same centered X,
+           but ensure text selection doesn't overflow padded gutters */
+        max-width: var(--scribe-centered-max);
+        scrollbar-gutter: stable;
+      }
+
+      /* Centered column responsive gutters — DPR-agnostic, mobile-optimized */
+      @media (max-width: 1024px) {
+        #scribe-stage {
+          --scribe-centered-gutter: 20px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        #scribe-stage {
+          --scribe-centered-gutter: 16px;
+        }
+      }
+
+      @media (max-width: 390px) {
+        #scribe-stage {
+          --scribe-centered-gutter: 12px;
+        }
       }
 
       /* Backdrop for overlay drawers */
@@ -887,17 +916,32 @@
         }
       }
 
-      /* Live mode seamless scroll: hide scrollbars clutter when WYSIWYG */
+      /* Live mode seamless scroll: hide scrollbars clutter when WYSIWYG
+         Centered column: canvas entities are centered via layout() (max 860, balanced gutters).
+         Stage gutters use paneBg so centered paper blends like Obsidian/Typora;
+         switch to var(--scribe-bg) for linen-style contrast if desired. */
       #scribe-stage.is-wysiwyg {
         background: var(--scribe-pane-bg);
       }
 
-      /* ── Inline WYSIWYG (Obsidian Live Preview) — per-block source overlay ── */
+      /* Centered reading column — canvas ScrollView/TextArea are centered via JS,
+         but HTML overlays (focus highlight, inline source) also need balanced gutters */
+      #scribe-stage.is-wysiwyg #scribe-inline-source,
+      #scribe-stage.is-wysiwyg #scribe-focus-highlight {
+        /* JS sets left/width to previewScroll.x + 8 / width -16 which is already centered;
+           CSS caps max-width to centered max so overlay never exceeds 860 even if JS mis-measures */
+        max-width: min(var(--scribe-centered-max), calc(100% - 32px));
+        box-sizing: border-box;
+      }
+
+      /* ── Inline WYSIWYG (Obsidian Live Preview) — per-block source overlay
+           Centered (Obsidian): JS positions at previewScroll.x+8 with width-16 which is already
+           centered when layout() centers previewScroll; CSS caps to centered max for safety. ── */
       #scribe-inline-source {
         position: absolute;
         left: 0;
         top: 0;
-        max-width: calc(100% - 32px);
+        max-width: min(var(--scribe-centered-max, 860px), calc(100% - 32px));
         background: var(--scribe-pane-bg);
         border: 1px solid var(--scribe-accent);
         border-left: 2px solid var(--scribe-accent);
