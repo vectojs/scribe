@@ -6,9 +6,9 @@
       "name": "scribe",
       "dependencies": {
         "@vectojs/core": "1.39.1",
-        "@vectojs/markdown": "0.23.0",
+        "@vectojs/markdown": "0.23.1",
         "@vectojs/styles": "0.3.3",
-        "@vectojs/ui": "2.20.1",
+        "@vectojs/ui": "2.20.2",
         "marked": "^18.0.10",
       },
       "devDependencies": {
@@ -434,7 +434,7 @@
 
     "@vectojs/layout": ["@vectojs/layout@0.10.0", "", { "dependencies": { "@vectojs/text": "^0.4.2" } }, "sha512-9yNttRaV/BZopYpevc9L9EE2UigzTxBzsD4j+hAfgGgATonQVKZkSW7gVveCkU1OostbWeFrNqAPMl+5sgOM9Q=="],
 
-    "@vectojs/markdown": ["@vectojs/markdown@0.23.0", "", { "dependencies": { "@vectojs/tex": "^0.1.2", "marked": "^18.0.7" }, "peerDependencies": { "@vectojs/core": ">=1.34.0 <2.0.0", "@vectojs/ui": ">=2.6.0 <3.0.0" } }, "sha512-5+NMzOBWroheeo4KtkojHydnBZpaKlbPgaFs0Mly8qA9X/KjQCP7LVN7ZSD3noAdAqdmZ7+72mrmDYSiWbLZjQ=="],
+    "@vectojs/markdown": ["@vectojs/markdown@0.23.1", "", { "dependencies": { "@vectojs/tex": "^0.1.3", "marked": "^18.0.10" }, "peerDependencies": { "@vectojs/core": ">=1.34.0 <2.0.0", "@vectojs/ui": ">=2.6.0 <3.0.0" } }, "sha512-MQ4OKX45n+eKfrDGZJ8kK6Bir2t/KzOHP0ZNi0tI107uF2E/u0WSGkcoDWLNAru6FjYLljXdbg6rdgsMtYTJtA=="],
 
     "@vectojs/math": ["@vectojs/math@0.1.2", "", {}, "sha512-neqXMBR2o4j5K6pTmCLyBoLt/NqvrkJvBSoyF2zloK0KSri7OVeZPgtYOPjn2qvlL4cXugXr8JaxZDjkgd9O1g=="],
 
@@ -444,7 +444,7 @@
 
     "@vectojs/text": ["@vectojs/text@0.4.2", "", { "dependencies": { "bidi-js": "^1.0.3" } }, "sha512-G9oxsoI+0KGnYA9FiirQfihPtXmq32HpVvd6ABVam2YDt2vak4K3870659ChZ+jjW6TfEV6YlSpwWFEyUwwb2Q=="],
 
-    "@vectojs/ui": ["@vectojs/ui@2.20.1", "", { "peerDependencies": { "@vectojs/core": ">=1.25.0 <2.0.0" } }, "sha512-2qn9W6+kzYVT5DDJeM6iXlW+GDTMI/pSFA959PLmZ4pPzvNZyAH+jMGRmPucrRsE+rIdQdzY3m+n7al07icPSw=="],
+    "@vectojs/ui": ["@vectojs/ui@2.20.2", "", { "peerDependencies": { "@vectojs/core": ">=1.25.0 <2.0.0" } }, "sha512-vq5LMn3olKrD2fcKt59BNfQoIDwYTfg+jZC3iekA7rC8AUqz2sHxiTVKh8pQL1aaEvCTfHLzlSyntyc2Tb80ew=="],
 
     "ajv": ["ajv@8.20.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="],
 
