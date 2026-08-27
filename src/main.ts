@@ -24,6 +24,7 @@ import {
   PRESET_FOR_MODE,
 } from './editor/ThemeManager';
 import { ScribeDocument } from './model/DocumentModel';
+import { isValidStageSize, markdownMaxWidth } from './utils/dpr';
 import { CloudSyncStub } from './model/cloudSync';
 import { loadDocumentWithStorage, saveDocumentWithStorage } from './model/storage';
 import { parseToc } from './model/toc';
@@ -92,6 +93,13 @@ function mountScribe(): void {
   const exportHtmlBtn = document.getElementById('scribe-export-html') as HTMLElement | null;
   const exportPdfBtn = document.getElementById('scribe-export-pdf') as HTMLElement | null;
   const syncContainer = document.getElementById('scribe-sync') as HTMLElement | null;
+  // Responsive shell hamburger/drawer hooks (CTX-0536)
+  const menuToggle = document.getElementById('scribe-menu-toggle') as HTMLButtonElement | null;
+  const settingsToggle = document.getElementById(
+    'scribe-settings-toggle',
+  ) as HTMLButtonElement | null;
+  const backdrop = document.getElementById('scribe-backdrop') as HTMLElement | null;
+  const settingsPanel = document.getElementById('scribe-settings') as HTMLElement | null;
 
   if (!canvas || !stage) throw new Error('Scribe requires #scribe-canvas and #scribe-stage');
 
@@ -106,6 +114,7 @@ function mountScribe(): void {
 
   const scene = new Scene(canvas, {
     disableWindowResize: true,
+    maxDPR: 3,
   });
 
   // Layout constants — mainstream spacing
@@ -199,6 +208,20 @@ function mountScribe(): void {
           updateToc();
           previewScroll.updateContentSize();
           scene.markDirty();
+          if (window.innerWidth < 900) {
+            (document.getElementById('scribe-explorer') as HTMLElement | null)?.classList.remove(
+              'is-open',
+            );
+            (document.getElementById('scribe-toc') as HTMLElement | null)?.classList.remove(
+              'is-open',
+            );
+            (document.getElementById('scribe-settings') as HTMLElement | null)?.classList.remove(
+              'is-open',
+            );
+            const bd = document.getElementById('scribe-backdrop') as HTMLElement | null;
+            if (bd) bd.hidden = true;
+            document.body.style.overflow = '';
+          }
         });
         fileListEl.appendChild(li);
       }
@@ -491,15 +514,16 @@ function mountScribe(): void {
     debouncedPreviewSync();
   });
 
-  // Resize + split layout
+  // Resize + split layout — DPR-aware: delegates backing-store to Scene.resize
+  // (CanvasRenderer.resize: Math.round(css*dpr) max(1), NaN/Infinity→1) and guards
+  // 0-height transient from iOS Safari URL-bar collapse.
   const layout = (): void => {
     const w = stage.clientWidth;
     const h = stage.clientHeight;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
+    if (!isValidStageSize(w, h)) return;
+    scene.resize(w, h);
+    // Keep markdownMaxWidth helper in sync for stage-level checks (320 floor)
+    void markdownMaxWidth(w);
 
     const availW = Math.max(320, w);
     const availH = Math.max(200, h);
@@ -532,6 +556,38 @@ function mountScribe(): void {
   const observer = new ResizeObserver(layout);
   observer.observe(stage);
   layout();
+
+  // DPR change also needs reflow even when stage size hasn't changed — Scene's
+  // watchDevicePixelRatio will resize backing store, but markdown maxWidth stays
+  // css-based so only markDirty is needed. Add explicit DPR watcher for parity.
+  let lastDpr =
+    typeof window !== 'undefined' && Number.isFinite(window.devicePixelRatio)
+      ? window.devicePixelRatio
+      : 1;
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    const armDprWatch = (): void => {
+      const cur =
+        typeof window.devicePixelRatio === 'number' && Number.isFinite(window.devicePixelRatio)
+          ? window.devicePixelRatio
+          : 1;
+      const mq = window.matchMedia(`(resolution: ${cur}dppx)`);
+      const handler = (): void => {
+        const next =
+          typeof window.devicePixelRatio === 'number' && Number.isFinite(window.devicePixelRatio)
+            ? window.devicePixelRatio
+            : 1;
+        if (Math.abs(next - lastDpr) <= 0.001) {
+          armDprWatch();
+          return;
+        }
+        lastDpr = next;
+        layout();
+        armDprWatch();
+      };
+      mq.addEventListener('change', handler, { once: true });
+    };
+    armDprWatch();
+  }
 
   // Drag handle
   if (handle) {
@@ -778,6 +834,13 @@ function mountScribe(): void {
     updateChrome();
     updateToc();
     scene.markDirty();
+    if (window.innerWidth < 900) {
+      explorerNav?.classList.remove('is-open');
+      tocNav?.classList.remove('is-open');
+      settingsPanel?.classList.remove('is-open');
+      if (backdrop) backdrop.hidden = true;
+      document.body.style.overflow = '';
+    }
   };
 
   if (explorerNav) {
@@ -801,6 +864,13 @@ function mountScribe(): void {
       updateToc();
       persistDocument(model);
       scene.markDirty();
+      if (window.innerWidth < 900) {
+        explorerNav?.classList.remove('is-open');
+        tocNav?.classList.remove('is-open');
+        settingsPanel?.classList.remove('is-open');
+        if (backdrop) backdrop.hidden = true;
+        document.body.style.overflow = '';
+      }
     });
   }
 
@@ -840,6 +910,74 @@ function mountScribe(): void {
   // Initial chrome + toc
   updateChrome();
   updateToc();
+
+  // --- Responsive drawer logic (<900 overlay, <640 hamburger) — CTX-0536 ---
+  const isOverlay = (): boolean => window.innerWidth < 900;
+
+  const syncDrawerA11y = (): void => {
+    const explorerOpen = explorerNav?.classList.contains('is-open') ?? false;
+    const tocOpen = tocNav?.classList.contains('is-open') ?? false;
+    const settingsOpen = settingsPanel?.classList.contains('is-open') ?? false;
+    if (menuToggle) menuToggle.setAttribute('aria-expanded', String(explorerOpen || tocOpen));
+    if (settingsToggle) settingsToggle.setAttribute('aria-expanded', String(settingsOpen));
+    const anyOpen = explorerOpen || tocOpen || settingsOpen;
+    if (backdrop) {
+      backdrop.hidden = !anyOpen || !isOverlay();
+      backdrop.setAttribute('aria-hidden', String(!anyOpen));
+    }
+    document.body.style.overflow = anyOpen && isOverlay() ? 'hidden' : '';
+  };
+
+  const closeDrawers = (): void => {
+    explorerNav?.classList.remove('is-open');
+    tocNav?.classList.remove('is-open');
+    settingsPanel?.classList.remove('is-open');
+    syncDrawerA11y();
+  };
+
+  const toggleExplorer = (): void => {
+    const willOpen = !(explorerNav?.classList.contains('is-open') ?? false);
+    explorerNav?.classList.toggle('is-open', willOpen);
+    if (willOpen && window.innerWidth < 640) {
+      settingsPanel?.classList.remove('is-open');
+      tocNav?.classList.remove('is-open');
+    }
+    syncDrawerA11y();
+  };
+
+  const toggleSettings = (): void => {
+    const willOpen = !(settingsPanel?.classList.contains('is-open') ?? false);
+    settingsPanel?.classList.toggle('is-open', willOpen);
+    if (willOpen && window.innerWidth < 640) {
+      explorerNav?.classList.remove('is-open');
+      tocNav?.classList.remove('is-open');
+    }
+    syncDrawerA11y();
+  };
+
+  menuToggle?.addEventListener('click', toggleExplorer);
+  settingsToggle?.addEventListener('click', toggleSettings);
+  backdrop?.addEventListener('click', closeDrawers);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const anyOpen =
+        (explorerNav?.classList.contains('is-open') ?? false) ||
+        (tocNav?.classList.contains('is-open') ?? false) ||
+        (settingsPanel?.classList.contains('is-open') ?? false);
+      if (anyOpen) {
+        closeDrawers();
+        (menuToggle ?? settingsToggle)?.focus();
+      }
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    if (!isOverlay()) closeDrawers();
+    syncDrawerA11y();
+  });
+
+  syncDrawerA11y();
 
   // Persistence
   window.addEventListener('beforeunload', () => {

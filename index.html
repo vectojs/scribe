@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Scribe — VectoJS Markdown Editor</title>
     <meta
       name="description"
@@ -28,6 +28,7 @@
       }
 
       :root {
+        --hairline: 1px;
         --scribe-bg: #f7f4ee;
         --scribe-pane-bg: #fffdf9;
         --scribe-border: #e5ddd3;
@@ -36,6 +37,18 @@
         --scribe-muted-2: #8a8175;
         --scribe-accent: #d97757;
         --scribe-accent-bg: #fdf0e6;
+      }
+
+      /* DPR hairline: crisper borders on HiDPI without layout shift */
+      @media (resolution: 2dppx) {
+        :root {
+          --hairline: 0.5px;
+        }
+      }
+      @media (resolution: 3dppx) {
+        :root {
+          --hairline: 0.33px;
+        }
       }
 
       html[data-theme="dark"] {
@@ -57,6 +70,7 @@
         background: var(--scribe-bg);
         color: var(--scribe-fg);
         font-family: "Inter", system-ui, sans-serif;
+        -webkit-text-size-adjust: 100%;
       }
 
       #scribe-app {
@@ -65,6 +79,7 @@
         width: 100%;
         height: 100vh;
         height: 100dvh;
+        min-height: 0;
       }
 
       #scribe-header {
@@ -73,10 +88,14 @@
         justify-content: space-between;
         gap: 12px;
         height: 44px;
+        min-height: 44px;
         padding: 0 16px;
-        border-bottom: 1px solid var(--scribe-border);
+        padding-left: max(16px, env(safe-area-inset-left));
+        padding-right: max(16px, env(safe-area-inset-right));
+        border-bottom: var(--hairline) solid var(--scribe-border);
         background: var(--scribe-pane-bg);
         flex-shrink: 0;
+        z-index: 20;
       }
 
       #scribe-header h1 {
@@ -93,6 +112,35 @@
       #scribe-header #scribe-save-status {
         font-size: 12px;
         color: var(--scribe-muted-2);
+        white-space: nowrap;
+      }
+
+      /* Hamburger / settings toggles — hidden on desktop, visible in overlay */
+      .scribe-icon-btn {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border: var(--hairline) solid var(--scribe-border);
+        border-radius: 6px;
+        background: var(--scribe-pane-bg);
+        color: var(--scribe-fg);
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+        flex-shrink: 0;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .scribe-icon-btn:hover {
+        background: var(--scribe-bg);
+      }
+
+      .scribe-icon-btn:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 2px;
       }
 
       /* Toolbar — StackEdit / Typora / VS Code familiar row */
@@ -215,15 +263,20 @@
         flex: 1;
         min-height: 0;
         overflow: hidden;
+        position: relative;
       }
 
       #scribe-explorer {
         width: 220px;
         flex-shrink: 0;
-        border-right: 1px solid var(--scribe-border);
+        border-right: var(--hairline) solid var(--scribe-border);
         background: var(--scribe-pane-bg);
         overflow-y: auto;
+        overflow-x: hidden;
         padding: 12px 0;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
       }
 
       #scribe-explorer h2 {
@@ -259,12 +312,16 @@
       #scribe-toc {
         width: 240px;
         flex-shrink: 0;
-        border-right: 1px solid var(--scribe-border);
+        border-right: var(--hairline) solid var(--scribe-border);
         background: var(--scribe-pane-bg);
         overflow-y: auto;
+        overflow-x: hidden;
         padding: 12px 0;
         display: flex;
         flex-direction: column;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
       }
 
       #scribe-toc h2 {
@@ -316,6 +373,7 @@
         position: relative;
         overflow: hidden;
         background: var(--scribe-bg);
+        touch-action: pan-y;
       }
 
       #scribe-canvas {
@@ -329,6 +387,31 @@
         inset: 0;
         overflow: hidden;
         pointer-events: none;
+      }
+
+      #scribe-a11y-root [data-vecto-content] {
+        pointer-events: auto;
+        touch-action: pan-y;
+        user-select: text;
+      }
+
+      /* Backdrop for overlay drawers */
+      #scribe-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        top: 44px;
+        background: rgba(61, 53, 41, 0.32);
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+        z-index: 10;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      #scribe-backdrop:not([hidden]) {
+        display: block;
       }
 
       /* Draggable split handle — HTML, sits above canvas */
@@ -371,13 +454,17 @@
       #scribe-settings {
         width: 260px;
         flex-shrink: 0;
-        border-left: 1px solid var(--scribe-border);
+        border-left: var(--hairline) solid var(--scribe-border);
         background: var(--scribe-pane-bg);
         overflow-y: auto;
+        overflow-x: hidden;
         padding: 16px;
         display: flex;
         flex-direction: column;
         gap: 16px;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
       }
 
       #scribe-settings h2 {
@@ -395,6 +482,8 @@
         gap: 8px;
         font-size: 13px;
         margin-bottom: 8px;
+        cursor: pointer;
+        touch-action: manipulation;
       }
 
       #scribe-settings .hint {
@@ -412,17 +501,59 @@
         background: var(--scribe-accent-bg);
       }
 
+      /* ── Responsive: 900px overlay (explorer / toc / settings become drawers) ── */
       @media (max-width: 900px) {
+        .scribe-icon-btn {
+          display: inline-flex;
+        }
+
+        #scribe-explorer,
+        #scribe-toc,
+        #scribe-settings {
+          position: fixed;
+          top: 44px;
+          bottom: 0;
+          z-index: 15;
+          max-width: 86vw;
+          box-shadow: 8px 0 24px rgba(61, 53, 41, 0.12);
+          transition: transform 180ms cubic-bezier(0.32, 0.72, 0, 1);
+          will-change: transform;
+        }
+
         #scribe-explorer {
-          display: none;
+          left: 0;
+          transform: translateX(-100%);
+          border-right: var(--hairline) solid var(--scribe-border);
+        }
+
+        #scribe-explorer.is-open {
+          transform: translateX(0);
         }
 
         #scribe-toc {
-          display: none;
+          left: 0;
+          transform: translateX(-100%);
+          border-right: var(--hairline) solid var(--scribe-border);
+        }
+
+        #scribe-toc.is-open {
+          transform: translateX(0);
         }
 
         #scribe-settings {
-          display: none;
+          right: 0;
+          left: auto;
+          transform: translateX(100%);
+          border-left: var(--hairline) solid var(--scribe-border);
+          box-shadow: -8px 0 24px rgba(61, 53, 41, 0.12);
+        }
+
+        #scribe-settings.is-open {
+          transform: translateX(0);
+        }
+
+        #scribe-stage {
+          flex-basis: 100%;
         }
 
         #scribe-toolbar {
@@ -435,15 +566,204 @@
           height: 26px;
         }
       }
+
+      /* ── Responsive: 640px hamburger (toolbar collapses) ── */
+      @media (max-width: 640px) {
+        #scribe-header {
+          gap: 8px;
+          padding: 0 12px;
+          padding-left: max(12px, env(safe-area-inset-left));
+          padding-right: max(12px, env(safe-area-inset-right));
+        }
+
+        #scribe-header h1 {
+          font-size: 14px;
+        }
+
+        #scribe-header #scribe-file-name {
+          font-size: 12px;
+          max-width: 38vw;
+        }
+
+        #scribe-header #scribe-save-status {
+          display: none;
+        }
+
+        #scribe-explorer {
+          width: 78vw;
+        }
+
+        #scribe-toc {
+          width: 72vw;
+        }
+
+        #scribe-settings {
+          width: 82vw;
+        }
+      }
+
+      /* ── Breakpoint: 390px small mobile (iPhone SE) ── */
+      @media (max-width: 390px) {
+        #scribe-header {
+          padding: 0 10px;
+          padding-left: max(10px, env(safe-area-inset-left));
+          padding-right: max(10px, env(safe-area-inset-right));
+        }
+
+        #scribe-header h1 {
+          font-size: 13px;
+        }
+
+        #scribe-header #scribe-file-name {
+          font-size: 11px;
+          max-width: 32vw;
+        }
+
+        #scribe-explorer li {
+          font-size: 12px;
+          padding: 8px 12px;
+        }
+
+        #scribe-toc li a {
+          font-size: 12px;
+          padding: 6px 12px;
+        }
+
+        #scribe-settings {
+          padding: 12px;
+        }
+
+        #scribe-settings .hint {
+          font-size: 10px;
+        }
+      }
+
+      /* ── Breakpoint: 1024px small desktop ── */
+      @media (min-width: 901px) and (max-width: 1024px) {
+        #scribe-explorer {
+          width: 200px;
+        }
+
+        #scribe-toc {
+          width: 220px;
+        }
+
+        #scribe-settings {
+          width: 240px;
+        }
+      }
+
+      /* ── Breakpoint: 2560px large desktop (1440p) ── */
+      @media (min-width: 1920px) {
+        #scribe-app {
+          max-width: 1920px;
+          margin: 0 auto;
+          border-left: var(--hairline) solid var(--scribe-border);
+          border-right: var(--hairline) solid var(--scribe-border);
+        }
+      }
+
+      @media (min-width: 2560px) {
+        #scribe-explorer {
+          width: 260px;
+        }
+
+        #scribe-toc {
+          width: 300px;
+        }
+
+        #scribe-settings {
+          width: 300px;
+        }
+
+        #scribe-header h1 {
+          font-size: 16px;
+        }
+
+        #scribe-explorer li,
+        #scribe-toc li a,
+        #scribe-settings label {
+          font-size: 14px;
+        }
+      }
+
+      /* ── Touch: ensure scroll momentum preserved ── */
+      @media (pointer: coarse) {
+        #scribe-explorer,
+        #scribe-toc,
+        #scribe-settings {
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        #scribe-explorer li {
+          min-height: 36px;
+          display: flex;
+          align-items: center;
+        }
+      }
+
+      /* ── Reduced motion ── */
+      @media (prefers-reduced-motion: reduce) {
+        #scribe-explorer,
+        #scribe-toc,
+        #scribe-settings {
+          transition: none;
+        }
+
+        #scribe-backdrop {
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+        }
+      }
+
+      /* ── Print: hide chrome, show stage ── */
+      @media print {
+        #scribe-header,
+        #scribe-explorer,
+        #scribe-toc,
+        #scribe-settings,
+        #scribe-toolbar,
+        #scribe-backdrop {
+          display: none !important;
+        }
+
+        #scribe-stage {
+          overflow: visible;
+        }
+      }
     </style>
   </head>
   <body>
     <div id="scribe-app">
       <header id="scribe-header" aria-label="Scribe header">
-        <h1>Scribe</h1>
-        <span id="scribe-file-name" aria-live="polite">Untitled.md</span>
-        <span id="scribe-save-status" aria-live="polite">Saved</span>
-        <div id="scribe-export-group" aria-label="Export">
+        <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 auto;">
+          <button
+            id="scribe-menu-toggle"
+            class="scribe-icon-btn"
+            type="button"
+            aria-label="Toggle file explorer"
+            aria-expanded="false"
+            aria-controls="scribe-explorer"
+          >
+            ☰
+          </button>
+          <h1>Scribe</h1>
+          <span id="scribe-file-name" aria-live="polite">Untitled.md</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+          <span id="scribe-save-status" aria-live="polite">Saved</span>
+          <button
+            id="scribe-settings-toggle"
+            class="scribe-icon-btn"
+            type="button"
+            aria-label="Toggle settings"
+            aria-expanded="false"
+            aria-controls="scribe-settings"
+          >
+            ⚙
+          </button>
+          <div id="scribe-export-group" aria-label="Export">
           <button
             id="scribe-export-md"
             type="button"
@@ -468,6 +788,7 @@
           >
             PDF
           </button>
+        </div>
         </div>
       </header>
       <!-- Toolbar: StackEdit/Typora familiar row, HTML buttons with inline SVG (cdn-vectojs/scribe/*) -->
@@ -688,6 +1009,12 @@
           </div>
           <div id="scribe-sync" aria-label="Cloud sync"></div>
         </aside>
+        <button
+          id="scribe-backdrop"
+          type="button"
+          aria-label="Close drawers"
+          hidden
+        ></button>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
