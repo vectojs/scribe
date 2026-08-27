@@ -99,6 +99,8 @@ export type ToolbarAction =
   | 'math'
   | 'mathBlock';
 
+export type HistoryAction = 'undo' | 'redo';
+
 export function applyToolbarAction(sel: TextSelection, action: ToolbarAction): EditResult {
   switch (action) {
     case 'bold':
@@ -139,12 +141,28 @@ export function applyToolbarAction(sel: TextSelection, action: ToolbarAction): E
   }
 }
 
+export function historyActionForChord(chord: string): HistoryAction | null {
+  const c = chord.toLowerCase();
+  switch (c) {
+    case 'ctrl+z':
+    case 'meta+z':
+      return 'undo';
+    case 'ctrl+y':
+    case 'meta+y':
+    case 'ctrl+shift+z':
+    case 'meta+shift+z':
+      return 'redo';
+    default:
+      return null;
+  }
+}
+
 /**
  * Map a keyboard chord (already normalized via `normalizeChord`) to a toolbar action.
  * Returns null when the chord is not a Scribe shortcut — the caller should then
  * let the browser handle it (and must not call preventDefault, so IME stays alive).
  */
-export function shortcutForChord(chord: string): ToolbarAction | null {
+export function shortcutForChord(chord: string): ToolbarAction | HistoryAction | null {
   const c = chord.toLowerCase();
   switch (c) {
     case 'ctrl+b':
@@ -183,6 +201,14 @@ export function shortcutForChord(chord: string): ToolbarAction | null {
     case 'ctrl+q':
     case 'meta+q':
       return 'quote';
+    case 'ctrl+z':
+    case 'meta+z':
+      return 'undo';
+    case 'ctrl+y':
+    case 'meta+y':
+    case 'ctrl+shift+z':
+    case 'meta+shift+z':
+      return 'redo';
     default:
       return null;
   }

@@ -40,8 +40,17 @@ describe('Shortcuts — chord mapping', () => {
   });
 
   test('unknown chord returns null', () => {
-    expect(shortcutForChord('ctrl+z')).toBeNull();
+    expect(shortcutForChord('ctrl+alt+z')).toBeNull();
     expect(shortcutForChord('alt+x')).toBeNull();
+  });
+
+  test('ctrl+z → undo, ctrl+y / ctrl+shift+z → redo', () => {
+    expect(shortcutForChord('ctrl+z')).toBe('undo');
+    expect(shortcutForChord('meta+z')).toBe('undo');
+    expect(shortcutForChord('ctrl+y')).toBe('redo');
+    expect(shortcutForChord('meta+y')).toBe('redo');
+    expect(shortcutForChord('ctrl+shift+z')).toBe('redo');
+    expect(shortcutForChord('meta+shift+z')).toBe('redo');
   });
 
   test('isComposingEvent true for isComposing', () => {

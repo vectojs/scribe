@@ -16,9 +16,82 @@ export const DEFAULT_SAMPLE_FILE: ScribeFileEntry = {
   content: SAMPLE_MARKDOWN,
 };
 
+export type HistorySnapshot = {
+  value: string;
+  selectionStart: number;
+  selectionEnd: number;
+};
+
+export class DocumentHistory {
+  private undoStacks = new Map<string, HistorySnapshot[]>();
+  private redoStacks = new Map<string, HistorySnapshot[]>();
+  private readonly maxSize: number;
+
+  constructor(maxSize = 100) {
+    this.maxSize = maxSize;
+  }
+
+  private getUndo(id: string): HistorySnapshot[] {
+    let s = this.undoStacks.get(id);
+    if (!s) {
+      s = [];
+      this.undoStacks.set(id, s);
+    }
+    return s;
+  }
+
+  private getRedo(id: string): HistorySnapshot[] {
+    let s = this.redoStacks.get(id);
+    if (!s) {
+      s = [];
+      this.redoStacks.set(id, s);
+    }
+    return s;
+  }
+
+  push(id: string, snapshot: HistorySnapshot): void {
+    const undo = this.getUndo(id);
+    const last = undo[undo.length - 1];
+    if (last && last.value === snapshot.value) return;
+    undo.push({ ...snapshot });
+    if (undo.length > this.maxSize) undo.shift();
+    this.getRedo(id).length = 0;
+  }
+
+  canUndo(id: string): boolean {
+    return (this.undoStacks.get(id)?.length ?? 0) > 0;
+  }
+
+  canRedo(id: string): boolean {
+    return (this.redoStacks.get(id)?.length ?? 0) > 0;
+  }
+
+  undo(id: string, current: HistorySnapshot): HistorySnapshot | null {
+    const undo = this.undoStacks.get(id);
+    if (!undo || undo.length === 0) return null;
+    const prev = undo.pop()!;
+    this.getRedo(id).push({ ...current });
+    return prev;
+  }
+
+  redo(id: string, current: HistorySnapshot): HistorySnapshot | null {
+    const redo = this.redoStacks.get(id);
+    if (!redo || redo.length === 0) return null;
+    const next = redo.pop()!;
+    this.getUndo(id).push({ ...current });
+    return next;
+  }
+
+  clear(id: string): void {
+    this.undoStacks.delete(id);
+    this.redoStacks.delete(id);
+  }
+}
+
 export class ScribeDocument {
   private _files: ScribeFileEntry[];
   private _activeId: string;
+  readonly history = new DocumentHistory();
 
   constructor(initial?: ScribeFileEntry[]) {
     this._files = initial ?? [
@@ -78,5 +151,6 @@ export class ScribeDocument {
     if (idx === -1) throw new Error(`Unknown file id: ${id}`);
     this._files.splice(idx, 1);
     if (this._activeId === id) this._activeId = this._files[0].id;
+    this.history.clear(id);
   }
 }
