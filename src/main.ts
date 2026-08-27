@@ -8,11 +8,13 @@ import {
   mapEditorToPreview,
   mapPreviewToEditor,
   SyncGuard,
+  throttleRaf,
 } from './editor/ScrollSync';
 import {
   applyToolbarAction,
   isComposingEvent,
   shortcutForChord,
+  type HistoryAction,
   type ToolbarAction,
 } from './editor/ToolbarActions';
 import {
@@ -294,6 +296,14 @@ function mountScribe(): void {
     label: 'Markdown source',
     onChange: (next) => {
       if (textArea.composition) return;
+      const prev = model.activeFile?.content ?? '';
+      if (prev !== next) {
+        model.history.push(model.activeId, {
+          value: prev,
+          selectionStart: textArea.selectionStart,
+          selectionEnd: textArea.selectionEnd,
+        });
+      }
       model.updateContent(model.activeId, next);
       debouncedRender(next);
       persistDocument(model);
@@ -422,14 +432,18 @@ function mountScribe(): void {
     scene.markDirty();
   };
 
+  // Preview rebuild is heavy (Markdown 500+ lines + TOC DOM). 80ms thrashes
+  // while typing fast. Bump to 120ms to coalesce bursts and keep 60fps.
   const debouncedRender = debounce((content: unknown) => {
     renderMarkdownImmediate(String(content));
     if (saveStatusEl) saveStatusEl.textContent = 'Saved';
     persistDocument(model);
-  }, 80) as (c: string) => void;
+  }, 120) as (c: string) => void;
 
   // --- Sync scroll: bidirectional, debounced, no loop ---
-  const guard = new SyncGuard(80);
+  // 80ms guard made wheel feel dead (every 5th tick only). 32ms keeps loop
+  // prevention but lets 30Hz wheel through.
+  const guard = new SyncGuard(32);
 
   const getEditorMetrics = (): {
     scrollTop: number;
@@ -644,8 +658,9 @@ function mountScribe(): void {
     }
   };
 
-  const debouncedEditorSync = debounce(() => syncEditorToPreview(), 16) as () => void;
-  const debouncedPreviewSync = debounce(() => syncPreviewToEditor(), 16) as () => void;
+  const debouncedEditorSync = debounce(() => syncEditorToPreview(), 12) as () => void;
+  const debouncedPreviewSync = debounce(() => syncPreviewToEditor(), 12) as () => void;
+  const throttledPreviewWheelSync = throttleRaf(() => syncPreviewToEditor()) as () => void;
 
   textArea.on('scroll', () => {
     if (!scrollSyncEnabled) return;
@@ -653,10 +668,25 @@ function mountScribe(): void {
   });
   previewScroll.on('wheel', () => {
     if (!scrollSyncEnabled) return;
-    setTimeout(() => debouncedPreviewSync(), 18);
+    throttledPreviewWheelSync();
   });
+  // pointermove fires constantly while hovering preview; only sync when
+  // ScrollView is actively dragging (touch/mouse drag), not on hover.
+  let previewDragging = false;
+  previewScroll.on('pointerdown', () => {
+    previewDragging = true;
+  });
+  const endPreviewDrag = (): void => {
+    previewDragging = false;
+  };
+  previewScroll.on('pointerup', endPreviewDrag);
+  previewScroll.on('pointerleave', endPreviewDrag);
+  previewScroll.on('pointercancel', endPreviewDrag);
   previewScroll.on('pointermove', () => {
     if (!scrollSyncEnabled) return;
+    const internalDragging = (previewScroll as unknown as { dragging?: boolean }).dragging;
+    const isDragging = internalDragging ?? previewDragging;
+    if (!isDragging) return;
     debouncedPreviewSync();
   });
 
@@ -1086,14 +1116,78 @@ function mountScribe(): void {
     });
   }
 
-  // Toolbar actions → TextArea insertion then preview rebuild
-  const applyAction = (action: ToolbarAction): void => {
-    const sel = {
+  // History helpers — per-file undo/redo via DocumentModel history stack
+  const applyHistorySnapshot = (snap: {
+    value: string;
+    selectionStart: number;
+    selectionEnd: number;
+  }): void => {
+    textArea.value = snap.value;
+    textArea.selectionStart = snap.selectionStart;
+    textArea.selectionEnd = snap.selectionEnd;
+    const mirror = getMirrorTextarea();
+    if (mirror) {
+      mirror.value = snap.value;
+      mirror.selectionStart = snap.selectionStart;
+      mirror.selectionEnd = snap.selectionEnd;
+      mirror.focus();
+    } else {
+      (textArea as unknown as { focused: boolean }).focused = true;
+    }
+    model.updateContent(model.activeId, snap.value);
+    renderMarkdownImmediate(snap.value);
+    persistDocument(model);
+    if (saveStatusEl) saveStatusEl.textContent = 'Edited';
+    scene.markDirty();
+  };
+
+  const doUndo = (): boolean => {
+    const current = {
       value: textArea.value,
       selectionStart: textArea.selectionStart,
       selectionEnd: textArea.selectionEnd,
     };
-    const next = applyToolbarAction(sel, action);
+    const prev = model.history.undo(model.activeId, current);
+    if (!prev) return false;
+    applyHistorySnapshot(prev);
+    return true;
+  };
+
+  const doRedo = (): boolean => {
+    const current = {
+      value: textArea.value,
+      selectionStart: textArea.selectionStart,
+      selectionEnd: textArea.selectionEnd,
+    };
+    const next = model.history.redo(model.activeId, current);
+    if (!next) return false;
+    applyHistorySnapshot(next);
+    return true;
+  };
+
+  // Toolbar actions → TextArea insertion then preview rebuild
+  const applyAction = (action: ToolbarAction | HistoryAction): void => {
+    if (action === 'undo') {
+      doUndo();
+      return;
+    }
+    if (action === 'redo') {
+      doRedo();
+      return;
+    }
+    const prevSnap = {
+      value: textArea.value,
+      selectionStart: textArea.selectionStart,
+      selectionEnd: textArea.selectionEnd,
+    };
+    const sel = {
+      value: prevSnap.value,
+      selectionStart: prevSnap.selectionStart,
+      selectionEnd: prevSnap.selectionEnd,
+    };
+    const next = applyToolbarAction(sel, action as ToolbarAction);
+    if (next.value === prevSnap.value) return;
+    model.history.push(model.activeId, prevSnap);
     textArea.value = next.value;
     textArea.selectionStart = next.selectionStart;
     textArea.selectionEnd = next.selectionEnd;
@@ -1474,8 +1568,15 @@ function mountScribe(): void {
   (window as unknown as { __scribeFocusAtLine: (n: number) => void }).__scribeFocusAtLine = (
     n: number,
   ) => focusAtLine(Math.max(0, n | 0));
-  (window as unknown as { __scribeApplyAction: (a: ToolbarAction) => void }).__scribeApplyAction =
-    applyAction;
+  (
+    window as unknown as { __scribeApplyAction: (a: ToolbarAction | HistoryAction) => void }
+  ).__scribeApplyAction = applyAction as (a: ToolbarAction | HistoryAction) => void;
+  (window as unknown as { __scribeUndo: () => boolean }).__scribeUndo = doUndo;
+  (window as unknown as { __scribeRedo: () => boolean }).__scribeRedo = doRedo;
+  (window as unknown as { __scribeCanUndo: () => boolean }).__scribeCanUndo = () =>
+    model.history.canUndo(model.activeId);
+  (window as unknown as { __scribeCanRedo: () => boolean }).__scribeCanRedo = () =>
+    model.history.canRedo(model.activeId);
   (window as unknown as { __scribeSyncEditorToPreview: () => void }).__scribeSyncEditorToPreview =
     syncEditorToPreview;
   (window as unknown as { __scribeRenderMarkdown: () => void }).__scribeRenderMarkdown = () => {
