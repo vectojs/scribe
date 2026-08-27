@@ -107,7 +107,7 @@ export class SyncGuard {
   private lastEditorSync = 0;
   private lastPreviewSync = 0;
 
-  constructor(private readonly cooldownMs = 80) {}
+  constructor(private readonly cooldownMs = 32) {}
 
   shouldSyncFromEditor(now = Date.now()): boolean {
     return now - this.lastPreviewSync > this.cooldownMs;
@@ -133,5 +133,50 @@ export function debounce<T extends (...args: unknown[]) => void>(fn: T, waitMs: 
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => fn(...args), waitMs);
   };
+  (debounced as unknown as { cancel: () => void }).cancel = () => {
+    if (timer) clearTimeout(timer);
+    timer = undefined;
+  };
   return debounced as T;
+}
+
+/** rAF-throttled throttle — fires at most once per frame, trailing. */
+export function throttleRaf<T extends (...args: unknown[]) => void>(fn: T): T {
+  const rafFn =
+    typeof requestAnimationFrame !== 'undefined'
+      ? requestAnimationFrame
+      : (cb: FrameRequestCallback): number => setTimeout(() => cb(0), 16) as unknown as number;
+  const cancelRaf =
+    typeof cancelAnimationFrame !== 'undefined'
+      ? cancelAnimationFrame
+      : (id: number): void => clearTimeout(id);
+  void cancelRaf;
+  let raf = 0;
+  let pending = false;
+  let lastArgs: Parameters<T> | null = null;
+  const throttled = (...args: Parameters<T>) => {
+    lastArgs = args;
+    if (raf) {
+      pending = true;
+      return;
+    }
+    raf = rafFn(() => {
+      raf = 0;
+      if (pending && lastArgs) {
+        pending = false;
+        fn(...(lastArgs as Parameters<T>));
+        if (pending) {
+          pending = false;
+          raf = rafFn(() => {
+            raf = 0;
+            if (lastArgs) fn(...(lastArgs as Parameters<T>));
+          });
+        }
+      } else if (lastArgs) {
+        fn(...(lastArgs as Parameters<T>));
+      }
+      lastArgs = null;
+    });
+  };
+  return throttled as T;
 }
