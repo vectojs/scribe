@@ -27,9 +27,9 @@
   },
   "dependencies": {
     "@vectojs/core": "1.39.1",
-    "@vectojs/markdown": "0.23.0",
+    "@vectojs/markdown": "0.23.1",
     "@vectojs/styles": "0.3.3",
-    "@vectojs/ui": "2.20.1",
+    "@vectojs/ui": "2.20.2",
     "marked": "^18.0.10"
   },
   "devDependencies": {
