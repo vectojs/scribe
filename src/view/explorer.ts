@@ -24,7 +24,7 @@ export function renderExplorer(
   header.style.fontWeight = '600';
   header.style.textTransform = 'uppercase';
   header.style.letterSpacing = '0.06em';
-  header.style.color = '#8a8175';
+  header.style.color = 'var(--scribe-muted-2)';
   header.style.fontFamily = 'system-ui, sans-serif';
 
   const title = document.createElement('span');
@@ -37,13 +37,13 @@ export function renderExplorer(
   addBtn.setAttribute('aria-label', 'New file');
   addBtn.style.width = '20px';
   addBtn.style.height = '20px';
-  addBtn.style.border = '1px solid #e5ddd3';
-  addBtn.style.background = '#fffdf9';
+  addBtn.style.border = 'var(--hairline) solid var(--scribe-border)';
+  addBtn.style.background = 'var(--scribe-pane-bg)';
   addBtn.style.borderRadius = '4px';
   addBtn.style.cursor = 'pointer';
   addBtn.style.fontSize = '14px';
   addBtn.style.lineHeight = '1';
-  addBtn.style.color = '#6b6256';
+  addBtn.style.color = 'var(--scribe-muted)';
   addBtn.addEventListener('click', () => {
     const name = `Untitled-${Date.now() % 1000}.md`;
     const entry = doc.addFile(name, `# ${name.replace('.md', '')}\n\n`);
@@ -74,16 +74,23 @@ export function renderExplorer(
     li.style.fontFamily = 'system-ui, sans-serif';
     li.style.cursor = 'pointer';
     li.style.borderLeft = '2px solid transparent';
-    li.style.color = file.id === doc.activeId ? '#3d3529' : '#1a1a1a';
-    li.style.background = file.id === doc.activeId ? '#fdf0e6' : 'transparent';
-    if (file.id === doc.activeId) li.style.borderLeftColor = '#d97757';
+    li.style.color = 'var(--scribe-fg)';
+    li.style.background = file.id === doc.activeId ? 'var(--scribe-accent-bg)' : 'transparent';
+    if (file.id === doc.activeId) li.style.borderLeftColor = 'var(--scribe-accent)';
 
     li.addEventListener('mouseenter', () => {
-      if (file.id !== doc.activeId) li.style.background = '#f5f0e8';
+      if (file.id !== doc.activeId) li.style.background = 'var(--scribe-bg)';
     });
     li.addEventListener('mouseleave', () => {
-      li.style.background = file.id === doc.activeId ? '#fdf0e6' : 'transparent';
+      li.style.background = file.id === doc.activeId ? 'var(--scribe-accent-bg)' : 'transparent';
     });
+
+    const icon = document.createElement('span');
+    icon.textContent = '📄';
+    icon.style.fontSize = '12px';
+    icon.style.opacity = '0.7';
+    icon.style.flexShrink = '0';
+    li.appendChild(icon);
 
     const nameSpan = document.createElement('span');
     nameSpan.textContent = file.name;
@@ -106,10 +113,10 @@ export function renderExplorer(
       input.style.flex = '1';
       input.style.fontSize = '14px';
       input.style.fontFamily = 'system-ui, sans-serif';
-      input.style.border = '1px solid #d97757';
+      input.style.border = '1px solid var(--scribe-accent)';
       input.style.borderRadius = '3px';
       input.style.padding = '2px 4px';
-      input.style.background = '#fff';
+      input.style.background = 'var(--scribe-pane-bg)';
       const finish = (): void => {
         const newName = input.value.trim() || file.name;
         if (newName !== file.name) {
@@ -148,7 +155,7 @@ export function renderExplorer(
     renameBtn.style.background = 'transparent';
     renameBtn.style.cursor = 'pointer';
     renameBtn.style.fontSize = '12px';
-    renameBtn.style.color = '#8a8175';
+    renameBtn.style.color = 'var(--scribe-muted-2)';
     renameBtn.style.flexShrink = '0';
     renameBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -168,7 +175,8 @@ export function renderExplorer(
     deleteBtn.style.background = 'transparent';
     deleteBtn.style.cursor = doc.files.length <= 1 ? 'not-allowed' : 'pointer';
     deleteBtn.style.fontSize = '14px';
-    deleteBtn.style.color = doc.files.length <= 1 ? '#c9c0b5' : '#8a8175';
+    deleteBtn.style.color =
+      doc.files.length <= 1 ? 'var(--scribe-muted-2)' : 'var(--scribe-muted-2)';
     deleteBtn.style.flexShrink = '0';
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();

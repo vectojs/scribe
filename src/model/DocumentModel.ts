@@ -2,10 +2,18 @@
  * Pure-TS document model for Scribe — no Canvas, DOM, or VectoJS imports.
  * Tested with bun test; consumed by the hybrid view layer.
  */
+import { SAMPLE_FILE_NAME, SAMPLE_MARKDOWN } from './sampleContent';
+
 export type ScribeFileEntry = {
   id: string;
   name: string;
   content: string;
+};
+
+export const DEFAULT_SAMPLE_FILE: ScribeFileEntry = {
+  id: '1',
+  name: SAMPLE_FILE_NAME,
+  content: SAMPLE_MARKDOWN,
 };
 
 export class ScribeDocument {
@@ -14,11 +22,7 @@ export class ScribeDocument {
 
   constructor(initial?: ScribeFileEntry[]) {
     this._files = initial ?? [
-      {
-        id: '1',
-        name: 'Untitled.md',
-        content: '# Hello Scribe\n\nStart writing markdown here.\n',
-      },
+      DEFAULT_SAMPLE_FILE,
       {
         id: '2',
         name: 'Welcome.md',

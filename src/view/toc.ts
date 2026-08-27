@@ -126,30 +126,38 @@ export function renderToc(
       a.href = `#${node.id}`;
       a.textContent = node.text;
       a.dataset.tocId = node.id;
+      a.dataset.depth = String(node.depth);
       a.style.display = 'block';
       a.style.padding = '4px 12px';
-      a.style.fontSize = '13px';
+      a.style.fontSize = node.depth <= 2 ? '13px' : '12px';
       a.style.fontFamily = 'system-ui, sans-serif';
-      a.style.color = '#3d3529';
+      a.style.color = 'var(--scribe-fg)';
       a.style.textDecoration = 'none';
       a.style.cursor = 'pointer';
       a.style.borderLeft = '2px solid transparent';
       a.style.whiteSpace = 'nowrap';
       a.style.overflow = 'hidden';
       a.style.textOverflow = 'ellipsis';
-      // indent by depth
+      a.style.fontWeight = node.depth === 1 ? '600' : node.depth === 2 ? '500' : '400';
+      if (node.depth > 2) a.style.opacity = '0.9';
+      // indent by depth — StackEdit-like hierarchical guide
       const indent = Math.max(0, node.depth - 1) * 12;
       a.style.paddingLeft = `${12 + indent}px`;
       a.addEventListener('click', (e) => {
         e.preventDefault();
         const y = positionMap.get(node.id) ?? 0;
+        // highlight active
+        container.querySelectorAll('a[data-toc-id]').forEach((el) => {
+          (el as HTMLElement).classList.remove('is-active');
+        });
+        a.classList.add('is-active');
         onSelect(y, node);
       });
       a.addEventListener('mouseenter', () => {
-        a.style.background = '#f7f4ee';
+        if (!a.classList.contains('is-active')) a.style.background = 'var(--scribe-bg)';
       });
       a.addEventListener('mouseleave', () => {
-        a.style.background = 'transparent';
+        if (!a.classList.contains('is-active')) a.style.background = 'transparent';
       });
       li.appendChild(a);
 

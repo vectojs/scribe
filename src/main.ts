@@ -16,10 +16,13 @@ import {
   type ToolbarAction,
 } from './editor/ToolbarActions';
 import {
-  persistTheme,
-  resolveInitialTheme,
+  ALL_PRESETS,
+  getModeForPreset,
+  persistPreset,
+  resolveInitialPreset,
   TOKENS_BY_MODE,
   toggleMode,
+  type MarkdownPreset,
   type ThemeMode,
   PRESET_FOR_MODE,
 } from './editor/ThemeManager';
@@ -101,9 +104,20 @@ function mountScribe(): void {
   const backdrop = document.getElementById('scribe-backdrop') as HTMLElement | null;
   const settingsPanel = document.getElementById('scribe-settings') as HTMLElement | null;
 
+  // Collapse + theme picker hooks (CTX-0539)
+  const toggleExplorerBtn = document.getElementById(
+    'scribe-toggle-explorer',
+  ) as HTMLButtonElement | null;
+  const toggleTocBtn = document.getElementById('scribe-toggle-toc') as HTMLButtonElement | null;
+  const themePicker = document.getElementById('scribe-theme-picker') as HTMLSelectElement | null;
+  const settingsThemePicker = document.getElementById(
+    'scribe-settings-theme-picker',
+  ) as HTMLSelectElement | null;
+
   if (!canvas || !stage) throw new Error('Scribe requires #scribe-canvas and #scribe-stage');
 
-  let themeMode: ThemeMode = resolveInitialTheme();
+  let currentPreset: MarkdownPreset = resolveInitialPreset();
+  let themeMode: ThemeMode = getModeForPreset(currentPreset);
   const applyHtmlTheme = (mode: ThemeMode): void => {
     document.documentElement.setAttribute('data-theme', mode);
   };
@@ -111,6 +125,67 @@ function mountScribe(): void {
 
   const model = createDocument();
   const cloudSync = new CloudSyncStub(window.localStorage);
+
+  // ── Collapsible explorer / TOC (CTX-0539) ────────────────────────────────
+  const EXPLORER_COLLAPSED_KEY = 'scribe:explorer-collapsed-v1';
+  const TOC_COLLAPSED_KEY = 'scribe:toc-collapsed-v1';
+
+  const readCollapsed = (key: string): boolean => {
+    try {
+      return window.localStorage.getItem(key) === 'true';
+    } catch {
+      return false;
+    }
+  };
+  const writeCollapsed = (key: string, value: boolean): void => {
+    try {
+      window.localStorage.setItem(key, String(value));
+    } catch {
+      // ignore
+    }
+  };
+
+  const applyExplorerCollapsed = (collapsed: boolean): void => {
+    if (!explorerNav) return;
+    explorerNav.classList.toggle('is-collapsed', collapsed);
+    if (toggleExplorerBtn) {
+      toggleExplorerBtn.setAttribute('aria-expanded', String(!collapsed));
+      toggleExplorerBtn.textContent = collapsed ? '▶' : '◀';
+      toggleExplorerBtn.setAttribute(
+        'aria-label',
+        collapsed ? 'Expand file explorer' : 'Collapse file explorer',
+      );
+    }
+  };
+  const applyTocCollapsed = (collapsed: boolean): void => {
+    if (!tocNav) return;
+    tocNav.classList.toggle('is-collapsed', collapsed);
+    if (toggleTocBtn) {
+      toggleTocBtn.setAttribute('aria-expanded', String(!collapsed));
+      toggleTocBtn.textContent = collapsed ? '▶' : '☷';
+      toggleTocBtn.setAttribute('aria-label', collapsed ? 'Expand outline' : 'Collapse outline');
+    }
+  };
+
+  const explorerCollapsed = readCollapsed(EXPLORER_COLLAPSED_KEY);
+  const tocCollapsed = readCollapsed(TOC_COLLAPSED_KEY);
+  applyExplorerCollapsed(explorerCollapsed);
+  applyTocCollapsed(tocCollapsed);
+
+  // Collapse toggles — persist + re-apply. ResizeObserver on stage will reflow canvas when flex gives stage more width.
+  toggleExplorerBtn?.addEventListener('click', () => {
+    const now = !(explorerNav?.classList.contains('is-collapsed') ?? false);
+    applyExplorerCollapsed(now);
+    writeCollapsed(EXPLORER_COLLAPSED_KEY, now);
+    // Nudge layout even if ResizeObserver hasn't fired yet (desktop flex transition)
+    window.dispatchEvent(new Event('resize'));
+  });
+  toggleTocBtn?.addEventListener('click', () => {
+    const now = !(tocNav?.classList.contains('is-collapsed') ?? false);
+    applyTocCollapsed(now);
+    writeCollapsed(TOC_COLLAPSED_KEY, now);
+    window.dispatchEvent(new Event('resize'));
+  });
 
   const scene = new Scene(canvas, {
     disableWindowResize: true,
@@ -162,7 +237,7 @@ function mountScribe(): void {
   const initialPreviewWidth = Math.max(320, 600);
   const markdown = new Markdown(textArea.value, {
     maxWidth: initialPreviewWidth,
-    theme: PRESET_FOR_MODE[themeMode] as keyof typeof PRESET_THEMES,
+    theme: currentPreset as keyof typeof PRESET_THEMES,
     selectable: true,
   });
 
@@ -735,23 +810,48 @@ function mountScribe(): void {
   };
   setupToolbarKeyboardNav();
 
-  // Theme toggle
-  const updateTheme = (mode: ThemeMode): void => {
-    themeMode = mode;
-    applyHtmlTheme(mode);
-    persistTheme(mode);
-    const preset = PRESET_FOR_MODE[mode] as keyof typeof PRESET_THEMES;
-    markdown.setTheme(preset);
-    const tokens = TOKENS_BY_MODE[mode];
+  // Theme — preset-aware (CTX-0539): full PRESET_THEMES list, persisted via theme-preset key
+  const syncThemePickers = (preset: MarkdownPreset): void => {
+    if (themePicker) themePicker.value = preset;
+    if (settingsThemePicker) settingsThemePicker.value = preset;
+  };
+
+  const applyThemePreset = (preset: MarkdownPreset): void => {
+    if (!ALL_PRESETS.includes(preset)) return;
+    currentPreset = preset;
+    themeMode = getModeForPreset(preset);
+    applyHtmlTheme(themeMode);
+    persistPreset(preset);
+    markdown.setTheme(preset as keyof typeof PRESET_THEMES);
+    const tokens = TOKENS_BY_MODE[themeMode];
     textArea.bg = tokens.paneBg;
     textArea.color = tokens.shellFg;
     textArea.border = tokens.border;
+    syncThemePickers(preset);
     scene.markDirty();
   };
-  updateTheme(themeMode);
+
+  const updateTheme = (mode: ThemeMode): void => {
+    const preset = PRESET_FOR_MODE[mode] as MarkdownPreset;
+    applyThemePreset(preset);
+  };
+
+  // Initialize from stored preset
+  syncThemePickers(currentPreset);
+  applyThemePreset(currentPreset);
+
+  // Toggle cycles light ↔ dark presets (githubLight ↔ dracula) for backward compat
   themeToggle?.addEventListener('click', () => {
     updateTheme(toggleMode(themeMode));
   });
+
+  const onPresetChange = (e: Event): void => {
+    const target = e.target as HTMLSelectElement;
+    const val = target.value as MarkdownPreset;
+    if (ALL_PRESETS.includes(val)) applyThemePreset(val);
+  };
+  themePicker?.addEventListener('change', onPresetChange);
+  settingsThemePicker?.addEventListener('change', onPresetChange);
 
   // Keyboard shortcuts via Scene channel + window fallback (without breaking IME)
   const handleShortcut = (rawChord: string, nativeEvent: KeyboardEvent): boolean => {
