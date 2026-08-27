@@ -94,6 +94,7 @@ export const zhCN: Record<keyof typeof en, string> = {
   // settings
   'settings.title': '设置',
   'settings.navLabel': '设置',
+  'settings.close': '关闭设置',
   'settings.livePreview': '实时预览',
   'settings.scrollSync': '滚动同步',
   'settings.focusMode': '专注模式',
