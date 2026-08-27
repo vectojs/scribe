@@ -8,7 +8,11 @@
       name="description"
       content="Scribe is a StackEdit-inspired markdown editor: hybrid HTML chrome with a VectoJS canvas core for source + preview."
     />
-    <link rel="icon" type="image/svg+xml" href="https://cdn.vectojs.org/scribe/logo.svg" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="https://cdn.vectojs.org/scribe/logo.svg"
+    />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Scribe — VectoJS Markdown Editor" />
     <meta
@@ -23,14 +27,36 @@
         padding: 0;
       }
 
+      :root {
+        --scribe-bg: #f7f4ee;
+        --scribe-pane-bg: #fffdf9;
+        --scribe-border: #e5ddd3;
+        --scribe-fg: #1a1a1a;
+        --scribe-muted: #6b6256;
+        --scribe-muted-2: #8a8175;
+        --scribe-accent: #d97757;
+        --scribe-accent-bg: #fdf0e6;
+      }
+
+      html[data-theme="dark"] {
+        --scribe-bg: #0f1115;
+        --scribe-pane-bg: #1a1e24;
+        --scribe-border: #2a2f3a;
+        --scribe-fg: #e6e2de;
+        --scribe-muted: #9aa0a8;
+        --scribe-muted-2: #7a828c;
+        --scribe-accent: #e8a07a;
+        --scribe-accent-bg: #2a2520;
+      }
+
       html,
       body {
         width: 100%;
         height: 100%;
         overflow: hidden;
-        background: #f7f4ee;
-        color: #1a1a1a;
-        font-family: 'Inter', system-ui, sans-serif;
+        background: var(--scribe-bg);
+        color: var(--scribe-fg);
+        font-family: "Inter", system-ui, sans-serif;
       }
 
       #scribe-app {
@@ -48,8 +74,8 @@
         gap: 12px;
         height: 44px;
         padding: 0 16px;
-        border-bottom: 1px solid #e5ddd3;
-        background: #fffdf9;
+        border-bottom: 1px solid var(--scribe-border);
+        background: var(--scribe-pane-bg);
         flex-shrink: 0;
       }
 
@@ -61,12 +87,95 @@
 
       #scribe-header #scribe-file-name {
         font-size: 13px;
-        color: #6b6256;
+        color: var(--scribe-muted);
       }
 
       #scribe-header #scribe-save-status {
         font-size: 12px;
-        color: #8a8175;
+        color: var(--scribe-muted-2);
+      }
+
+      /* Toolbar — StackEdit / Typora / VS Code familiar row */
+      #scribe-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-height: 40px;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--scribe-border);
+        background: var(--scribe-pane-bg);
+        flex-shrink: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      #scribe-toolbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      #scribe-toolbar .toolbar-group {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 0 4px;
+        border-right: 1px solid var(--scribe-border);
+      }
+
+      #scribe-toolbar .toolbar-group:last-of-type {
+        border-right: none;
+      }
+
+      #scribe-toolbar button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--scribe-fg);
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        transition:
+          background 120ms,
+          border-color 120ms,
+          color 120ms;
+      }
+
+      #scribe-toolbar button:hover {
+        background: var(--scribe-bg);
+        border-color: var(--scribe-border);
+      }
+
+      #scribe-toolbar button:active {
+        background: var(--scribe-accent-bg);
+        border-color: var(--scribe-accent);
+      }
+
+      #scribe-toolbar button svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+        stroke: currentColor;
+      }
+
+      #scribe-toolbar .toolbar-sep {
+        width: 1px;
+        height: 18px;
+        background: var(--scribe-border);
+        margin: 0 2px;
+        flex-shrink: 0;
+      }
+
+      #scribe-toolbar #scribe-theme-toggle {
+        margin-left: auto;
+        width: auto;
+        padding: 0 10px;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 500;
       }
 
       #scribe-body {
@@ -79,8 +188,8 @@
       #scribe-explorer {
         width: 220px;
         flex-shrink: 0;
-        border-right: 1px solid #e5ddd3;
-        background: #fffdf9;
+        border-right: 1px solid var(--scribe-border);
+        background: var(--scribe-pane-bg);
         overflow-y: auto;
         padding: 12px 0;
       }
@@ -90,7 +199,7 @@
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        color: #8a8175;
+        color: var(--scribe-muted-2);
         padding: 0 12px 8px;
       }
 
@@ -105,14 +214,14 @@
         border-left: 2px solid transparent;
       }
 
-      #scribe-explorer li[aria-selected='true'] {
-        background: #fdf0e6;
-        border-left-color: #d97757;
-        color: #3d3529;
+      #scribe-explorer li[aria-selected="true"] {
+        background: var(--scribe-accent-bg);
+        border-left-color: var(--scribe-accent);
+        color: var(--scribe-fg);
       }
 
       #scribe-explorer li:hover {
-        background: #f7f4ee;
+        background: var(--scribe-bg);
       }
 
       #scribe-stage {
@@ -120,7 +229,8 @@
         min-width: 0;
         position: relative;
         overflow: hidden;
-        background: #f7f4ee;
+        background: var(--scribe-bg);
+        /* spacing spec: 16px padding around canvas is handled in JS via maxWidth; gap 8px between panes is the handle */
       }
 
       #scribe-canvas {
@@ -136,11 +246,48 @@
         pointer-events: none;
       }
 
+      /* Draggable split handle — HTML, sits above canvas */
+      #scribe-split-handle {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 8px;
+        margin-left: -4px;
+        cursor: col-resize;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        touch-action: none;
+        background: transparent;
+      }
+
+      #scribe-split-handle::after {
+        content: "";
+        width: 1px;
+        height: 100%;
+        background: var(--scribe-border);
+        transition:
+          background 120ms,
+          width 120ms;
+      }
+
+      #scribe-split-handle:hover::after,
+      #scribe-split-handle[data-dragging="true"]::after {
+        background: var(--scribe-accent);
+        width: 2px;
+      }
+
+      #scribe-split-handle:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: -2px;
+      }
+
       #scribe-settings {
         width: 260px;
         flex-shrink: 0;
-        border-left: 1px solid #e5ddd3;
-        background: #fffdf9;
+        border-left: 1px solid var(--scribe-border);
+        background: var(--scribe-pane-bg);
         overflow-y: auto;
         padding: 16px;
       }
@@ -150,7 +297,7 @@
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: #6b6256;
+        color: var(--scribe-muted);
         margin-bottom: 12px;
       }
 
@@ -164,18 +311,206 @@
 
       #scribe-settings .hint {
         font-size: 11px;
-        color: #8a8175;
+        color: var(--scribe-muted-2);
         margin-top: 8px;
+      }
+
+      @media (max-width: 900px) {
+        #scribe-explorer {
+          display: none;
+        }
+
+        #scribe-settings {
+          display: none;
+        }
+
+        #scribe-toolbar {
+          gap: 2px;
+          padding: 4px 6px;
+        }
+
+        #scribe-toolbar button {
+          width: 26px;
+          height: 26px;
+        }
       }
     </style>
   </head>
   <body>
     <div id="scribe-app">
-      <header id="scribe-header" aria-label="Scribe toolbar">
+      <header id="scribe-header" aria-label="Scribe header">
         <h1>Scribe</h1>
         <span id="scribe-file-name" aria-live="polite">Untitled.md</span>
         <span id="scribe-save-status" aria-live="polite">Saved</span>
       </header>
+      <!-- Toolbar: StackEdit/Typora familiar row, HTML buttons with inline SVG (cdn-vectojs/scribe/*) -->
+      <div id="scribe-toolbar" role="toolbar" aria-label="Markdown formatting">
+        <div class="toolbar-group" aria-label="Inline">
+          <button
+            type="button"
+            data-action="bold"
+            title="Bold (Ctrl+B)"
+            aria-label="Bold"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M5 3h3.2c1.7 0 2.8 1 2.8 2.4 0 .9-.4 1.6-1.2 2 1 .4 1.6 1.2 1.6 2.2 0 1.6-1.2 2.4-3 2.4H5V3Zm1.5 4.8h2c.7 0 1.2-.4 1.2-1.1 0-.7-.5-1.1-1.2-1.1h-2v2.2Zm0 1.4v2.4h2.3c.7 0 1.3-.4 1.3-1.2 0-.7-.5-1.2-1.4-1.2h-2.2Z"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-action="italic"
+            title="Italic (Ctrl+I)"
+            aria-label="Italic"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M7 3h4l-.6 1.5H9l-2.4 6H8l-.6 1.5H3l.6-1.5H5l2.4-6H6L7 3Z"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-action="code"
+            title="Inline code (Ctrl+E)"
+            aria-label="Inline code"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M6 4 3.2 8 6 12l-.9.7L1.8 8 5.1 3.3 6 4Zm4 0 2.8 4L10 12l.9.7L14.2 8 10.9 3.3 10 4ZM8.3 2.5l1.4.4-3.4 10-1.4-.4 3.4-10Z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div class="toolbar-group" aria-label="Blocks">
+          <button
+            type="button"
+            data-action="h1"
+            title="Heading 1 (Ctrl+1)"
+            aria-label="Heading 1"
+          >
+            H1
+          </button>
+          <button
+            type="button"
+            data-action="h2"
+            title="Heading 2 (Ctrl+2)"
+            aria-label="Heading 2"
+          >
+            H2
+          </button>
+          <button
+            type="button"
+            data-action="h3"
+            title="Heading 3 (Ctrl+3)"
+            aria-label="Heading 3"
+          >
+            H3
+          </button>
+          <button
+            type="button"
+            data-action="quote"
+            title="Quote (Ctrl+Q)"
+            aria-label="Quote"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M4 4h2v3H4V4Zm6 0h2v3H10V4ZM4 8h2v4H4V8Zm6 0h2v4h-2V8Z"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-action="codeBlock"
+            title="Code block (Ctrl+Shift+C)"
+            aria-label="Code block"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2 5h12v1H2V5Zm0 4h12v1H2V9Zm0 4h8v1H2v-1Z" />
+              <path
+                d="M4 3.5 2.5 5 4 6.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.1"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <div class="toolbar-group" aria-label="Insert">
+          <button
+            type="button"
+            data-action="link"
+            title="Link (Ctrl+K)"
+            aria-label="Link"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M6.7 9.3 5.3 10.7A2.2 2.2 0 0 1 2.2 7.6L3.7 6l1 1-1.5 1.5a.7.7 0 0 0 1 1L5.7 8l1 1ZM8 5.7 9.3 4.3A2.2 2.2 0 0 1 12.4 7.4l-1.4 1.4-1-1L11.5 6.3a.7.7 0 0 0-1-1L9 6.7 8 5.7ZM5.8 10.2l4.4-4.4.9.9-4.4 4.4-.9-.9Z"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-action="image"
+            title="Image (Ctrl+Shift+I)"
+            aria-label="Image"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M3 3h10v10H3V3Zm1 1v8h8V4H4Zm2 2.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2ZM4 11l2.2-2.8 2 2 1.3-1.7L12 11H4Z"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-action="table"
+            title="Table (Ctrl+Shift+T)"
+            aria-label="Table"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M3 3h10v10H3V3Zm1 1v8h8V4H4Zm0 3h8v1H4V7Zm0 3h8v1H4v-1ZM7 4v8h1V4H7Z"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-action="math"
+            title="Math (Ctrl+Shift+M)"
+            aria-label="Math"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d="M4 7h8v1H4V7Zm2 3h4v1H6V10Zm-2-6h1v2h2V4h1v2h2V4h1v2h1v1h-1v2h1v1h-1v2h-1v-2H9v2H8v-2H6v2H5v-2H4v-1h1V7H4V6Z"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-action="mathBlock"
+            title="Math block"
+            aria-label="Math block"
+          >
+            $$
+          </button>
+        </div>
+        <button
+          type="button"
+          id="scribe-theme-toggle"
+          title="Toggle theme"
+          aria-label="Toggle theme"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true" width="14" height="14">
+            <path
+              d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2Zm0 1a5 5 0 0 1 4.3 7.5A5 5 0 0 1 8 3Z"
+            />
+          </svg>
+          Theme
+        </button>
+      </div>
       <div id="scribe-body">
         <nav id="scribe-explorer" aria-label="File explorer">
           <h2>Explorer</h2>
@@ -188,12 +523,28 @@
         <div id="scribe-stage" aria-label="Editor stage">
           <canvas id="scribe-canvas" aria-label="Scribe editor canvas"></canvas>
           <div id="scribe-a11y-root"></div>
+          <div
+            id="scribe-split-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize editor and preview"
+            tabindex="0"
+          ></div>
         </div>
         <aside id="scribe-settings" aria-label="Settings">
           <h2>Settings</h2>
-          <label><input type="checkbox" checked /> Live preview</label>
-          <label><input type="checkbox" checked /> Scroll sync</label>
-          <p class="hint">Hybrid shell: outer chrome is plain HTML/CSS; center stage is VectoJS canvas + a11y projection.</p>
+          <label
+            ><input type="checkbox" id="scribe-live-preview" checked /> Live
+            preview</label
+          >
+          <label
+            ><input type="checkbox" id="scribe-scroll-sync" checked /> Scroll
+            sync</label
+          >
+          <p class="hint">
+            Hybrid shell: outer chrome is plain HTML/CSS; center stage is
+            VectoJS canvas + a11y projection.
+          </p>
           <p class="hint">Add <code>?debug</code> to attach devtools.</p>
         </aside>
       </div>
