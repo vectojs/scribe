@@ -591,7 +591,7 @@
         outline-offset: -2px;
       }
 
-      /* ── Settings: Obsidian-style modal (replaces permanent right pane) ── */
+      /* ── Settings: Obsidian-style modal with left icon nav + tabs ── */
       #scribe-settings {
         border: var(--hairline) solid var(--scribe-border);
         background: var(--scribe-pane-bg);
@@ -601,9 +601,9 @@
           0 20px 60px rgba(61, 53, 41, 0.22),
           0 8px 24px rgba(61, 53, 41, 0.14);
         padding: 0;
-        width: min(560px, calc(100vw - 32px));
+        width: min(720px, calc(100vw - 32px));
         max-width: calc(100vw - 32px);
-        max-height: min(80vh, 640px);
+        max-height: min(80vh, 680px);
         overflow: hidden;
         flex-direction: column;
         margin: auto;
@@ -694,6 +694,128 @@
         outline-offset: 2px;
       }
 
+      .scribe-settings__layout {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .scribe-settings__nav {
+        width: 160px;
+        min-width: 160px;
+        flex-shrink: 0;
+        border-right: var(--hairline) solid var(--scribe-border);
+        background: var(--scribe-bg);
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+      }
+
+      .scribe-settings__nav button[role="tab"] {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--scribe-fg);
+        font-size: 13px;
+        font-family: system-ui, sans-serif;
+        text-align: left;
+        cursor: pointer;
+        line-height: 1.2;
+        touch-action: manipulation;
+      }
+
+      .scribe-settings__nav button[role="tab"]:hover {
+        background: var(--scribe-pane-bg);
+        border-color: var(--scribe-border);
+      }
+
+      .scribe-settings__nav button[role="tab"][aria-selected="true"] {
+        background: var(--scribe-pane-bg);
+        border-color: var(--scribe-accent);
+        color: var(--scribe-fg);
+        font-weight: 500;
+        box-shadow: 0 1px 4px rgba(61, 53, 41, 0.08);
+      }
+
+      .scribe-settings__nav button[role="tab"]:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 1px;
+      }
+
+      .scribe-settings__nav .scribe-settings__icon {
+        width: 16px;
+        height: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+
+      .scribe-settings__nav .scribe-settings__icon svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .scribe-settings__panes {
+        flex: 1;
+        min-width: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+        background: var(--scribe-pane-bg);
+      }
+
+      .scribe-settings__pane {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .scribe-settings__pane[hidden] {
+        display: none !important;
+      }
+
+      .scribe-settings__pane h3 {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--scribe-muted);
+        margin: 0 0 8px;
+      }
+
+      .scribe-settings__pane h4 {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--scribe-fg);
+        margin: 12px 0 6px;
+      }
+
+      /* keep body alias for backward compat / fallback */
       .scribe-settings__body {
         overflow-y: auto;
         overflow-x: hidden;
@@ -731,6 +853,50 @@
         font-size: 11px;
         color: var(--scribe-muted-2);
         margin-top: 8px;
+        line-height: 1.5;
+      }
+
+      .scribe-settings__hotkeys-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+
+      .scribe-settings__hotkeys-table th {
+        text-align: left;
+        font-weight: 600;
+        color: var(--scribe-muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 6px 8px;
+        border-bottom: var(--hairline) solid var(--scribe-border);
+      }
+
+      .scribe-settings__hotkeys-table td {
+        padding: 6px 8px;
+        border-bottom: var(--hairline) solid var(--scribe-border);
+        color: var(--scribe-fg);
+        vertical-align: middle;
+      }
+
+      .scribe-settings__hotkeys-table td:last-child {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: var(--scribe-muted);
+        white-space: nowrap;
+      }
+
+      .scribe-settings__kbd {
+        display: inline-block;
+        padding: 1px 6px;
+        border: var(--hairline) solid var(--scribe-border);
+        border-radius: 4px;
+        background: var(--scribe-pane-bg);
+        font-family: ui-monospace, monospace;
+        font-size: 10px;
+        line-height: 1.6;
+        margin-right: 2px;
       }
 
       /* ── Responsive: 900px overlay (explorer / toc become drawers; settings is modal) ── */
@@ -817,8 +983,33 @@
         }
 
         #scribe-settings {
-          width: min(560px, calc(100vw - 24px));
+          width: min(720px, calc(100vw - 24px));
           max-height: 84vh;
+        }
+
+        .scribe-settings__nav {
+          width: 52px;
+          min-width: 52px;
+          padding: 6px 4px;
+        }
+
+        .scribe-settings__nav button[role="tab"] {
+          justify-content: center;
+          padding: 10px 4px;
+          font-size: 0;
+          gap: 0;
+        }
+
+        .scribe-settings__nav button[role="tab"] .scribe-settings__label {
+          display: none;
+        }
+
+        .scribe-settings__nav .scribe-settings__icon {
+          font-size: 16px;
+        }
+
+        .scribe-settings__panes {
+          padding: 12px;
         }
       }
 
@@ -849,7 +1040,8 @@
           padding: 6px 12px;
         }
 
-        .scribe-settings__body {
+        .scribe-settings__body,
+        .scribe-settings__panes {
           padding: 12px;
         }
 
@@ -859,6 +1051,15 @@
 
         #scribe-settings {
           width: calc(100vw - 24px);
+        }
+
+        .scribe-settings__hotkeys-table {
+          font-size: 11px;
+        }
+
+        .scribe-settings__hotkeys-table th,
+        .scribe-settings__hotkeys-table td {
+          padding: 4px 6px;
         }
       }
 
@@ -907,7 +1108,9 @@
       @media (pointer: coarse) {
         #scribe-explorer,
         #scribe-toc,
-        .scribe-settings__body {
+        .scribe-settings__body,
+        .scribe-settings__panes,
+        .scribe-settings__nav {
           overscroll-behavior: contain;
           -webkit-overflow-scrolling: touch;
         }
@@ -1538,65 +1741,295 @@
             ×
           </button>
         </div>
-        <div class="scribe-settings__body">
-          <div>
-            <label
-              ><input type="checkbox" id="scribe-live-preview" checked /> 实时
-              预览</label
+        <div class="scribe-settings__layout">
+          <nav
+            class="scribe-settings__nav"
+            role="tablist"
+            aria-orientation="vertical"
+            aria-label="Settings sections"
+          >
+            <button
+              role="tab"
+              id="scribe-settings-tab-appearance"
+              data-tab="appearance"
+              aria-selected="true"
+              aria-controls="scribe-settings-pane-appearance"
+              tabindex="0"
             >
-            <label
-              ><input type="checkbox" id="scribe-scroll-sync" checked /> 滚动
-              同步</label
+              <span class="scribe-settings__icon" aria-hidden="true">🎨</span>
+              <span class="scribe-settings__label">外观</span>
+            </button>
+            <button
+              role="tab"
+              id="scribe-settings-tab-editor"
+              data-tab="editor"
+              aria-selected="false"
+              aria-controls="scribe-settings-pane-editor"
+              tabindex="-1"
             >
-            <label
-              ><input type="checkbox" id="scribe-focus-mode" /> 专注 模式</label
+              <span class="scribe-settings__icon" aria-hidden="true">📝</span>
+              <span class="scribe-settings__label">编辑器</span>
+            </button>
+            <button
+              role="tab"
+              id="scribe-settings-tab-hotkeys"
+              data-tab="hotkeys"
+              aria-selected="false"
+              aria-controls="scribe-settings-pane-hotkeys"
+              tabindex="-1"
             >
-            <div style="margin: 12px 0 8px">
-              <label
-                for="scribe-settings-theme-picker"
-                style="font-size: 12px; font-weight: 600; margin-bottom: 6px"
-                >Markdown 主题</label
+              <span class="scribe-settings__icon" aria-hidden="true">⌨</span>
+              <span class="scribe-settings__label">快捷键</span>
+            </button>
+            <button
+              role="tab"
+              id="scribe-settings-tab-about"
+              data-tab="about"
+              aria-selected="false"
+              aria-controls="scribe-settings-pane-about"
+              tabindex="-1"
+            >
+              <span class="scribe-settings__icon" aria-hidden="true">ℹ</span>
+              <span class="scribe-settings__label">关于</span>
+            </button>
+          </nav>
+          <div class="scribe-settings__panes">
+            <!-- Appearance: Theme, Language -->
+            <section
+              role="tabpanel"
+              id="scribe-settings-pane-appearance"
+              class="scribe-settings__pane"
+              aria-labelledby="scribe-settings-tab-appearance"
+            >
+              <h3 id="scribe-settings-appearance-title">外观</h3>
+              <div>
+                <label
+                  for="scribe-settings-theme-picker"
+                  style="font-size: 12px; font-weight: 600; margin-bottom: 6px"
+                  >Markdown 主题</label
+                >
+                <select
+                  id="scribe-settings-theme-picker"
+                  aria-label="Markdown 主题（设置）"
+                  style="width: 100%"
+                >
+                  <option value="githubLight">GitHub Light</option>
+                  <option value="githubDark">GitHub Dark</option>
+                  <option value="dracula">Dracula</option>
+                  <option value="solarizedLight">Solarized Light</option>
+                  <option value="solarizedDark">Solarized Dark</option>
+                </select>
+                <p class="hint" id="scribe-settings-theme-hint">
+                  应用于预览、编辑器和外壳主题。
+                </p>
+              </div>
+              <div>
+                <label
+                  for="scribe-settings-lang-picker"
+                  style="font-size: 12px; font-weight: 600; margin-bottom: 6px"
+                  >语言</label
+                >
+                <select
+                  id="scribe-settings-lang-picker"
+                  aria-label="语言（设置）"
+                  style="width: 100%"
+                >
+                  <option value="zh-CN">简体中文</option>
+                  <option value="en">English</option>
+                </select>
+                <p class="hint" id="scribe-settings-lang-hint">
+                  界面语言，切换后立即刷新外壳。
+                </p>
+              </div>
+            </section>
+
+            <!-- Editor: Live preview, Scroll sync, Focus mode, WYSIWYG -->
+            <section
+              role="tabpanel"
+              id="scribe-settings-pane-editor"
+              class="scribe-settings__pane"
+              aria-labelledby="scribe-settings-tab-editor"
+              hidden
+            >
+              <h3 id="scribe-settings-editor-title">编辑器</h3>
+              <label id="scribe-settings-live-preview-label"
+                ><input type="checkbox" id="scribe-live-preview" checked />
+                实时预览</label
               >
-              <select
-                id="scribe-settings-theme-picker"
-                aria-label="Markdown 主题（设置）"
-                style="width: 100%"
+              <label id="scribe-settings-scroll-sync-label"
+                ><input type="checkbox" id="scribe-scroll-sync" checked />
+                滚动同步</label
               >
-                <option value="githubLight">GitHub Light</option>
-                <option value="githubDark">GitHub Dark</option>
-                <option value="dracula">Dracula</option>
-                <option value="solarizedLight">Solarized Light</option>
-                <option value="solarizedDark">Solarized Dark</option>
-              </select>
-              <p class="hint">应用于预览、编辑器和外壳主题。</p>
-            </div>
-            <div style="margin: 12px 0 8px">
-              <label
-                for="scribe-settings-lang-picker"
-                style="font-size: 12px; font-weight: 600; margin-bottom: 6px"
-                >语言</label
+              <label id="scribe-settings-focus-mode-label"
+                ><input type="checkbox" id="scribe-focus-mode" />
+                专注模式</label
               >
-              <select
-                id="scribe-settings-lang-picker"
-                aria-label="语言（设置）"
-                style="width: 100%"
+              <label id="scribe-settings-wysiwyg-label"
+                ><input type="checkbox" id="scribe-settings-wysiwyg" />
+                所见即所得模式</label
               >
-                <option value="zh-CN">简体中文</option>
-                <option value="en">English</option>
-              </select>
-              <p class="hint">界面语言，切换后立即刷新外壳。</p>
-            </div>
-            <p class="hint">
-              混合外壳：外层为 HTML/CSS，中心为 VectoJS 画布与无障碍投影。
-            </p>
-            <p class="hint">添加 <code>?debug</code> 以附加开发者工具。</p>
-          </div>
-          <div>
-            <h2>导出</h2>
-            <p class="hint">
-              通过 Blob 与 FileSaver 下载。HTML 使用
-              <code>outerHTML</code> 包装。
-            </p>
+              <p class="hint" id="scribe-settings-editor-hint">
+                实时预览关闭时需手动刷新。所见即所得为 Typora 风格单栏编辑。
+              </p>
+            </section>
+
+            <!-- Hotkeys: shortcuts table -->
+            <section
+              role="tabpanel"
+              id="scribe-settings-pane-hotkeys"
+              class="scribe-settings__pane"
+              aria-labelledby="scribe-settings-tab-hotkeys"
+              hidden
+            >
+              <h3 id="scribe-settings-hotkeys-title">快捷键</h3>
+              <table
+                class="scribe-settings__hotkeys-table"
+                aria-label="快捷键列表"
+              >
+                <thead>
+                  <tr>
+                    <th id="scribe-settings-hotkeys-col-action">操作</th>
+                    <th id="scribe-settings-hotkeys-col-shortcut">快捷键</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-hotkey="bold">加粗</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">B</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="italic">斜体</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">I</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="code">行内代码</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">E</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="h1">标题 1</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">1</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="h2">标题 2</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">2</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="h3">标题 3</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">3</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="quote">引用</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">Q</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="codeBlock">代码块</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">Shift</span> +
+                      <span class="scribe-settings__kbd">C</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="link">链接</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">K</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="image">图片</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">Shift</span> +
+                      <span class="scribe-settings__kbd">I</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="table">表格</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">Shift</span> +
+                      <span class="scribe-settings__kbd">T</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="math">行内公式</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">Shift</span> +
+                      <span class="scribe-settings__kbd">M</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="undo">撤销</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">Z</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-hotkey="redo">重做</td>
+                    <td>
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">Y</span> /
+                      <span class="scribe-settings__kbd">Ctrl</span> +
+                      <span class="scribe-settings__kbd">Shift</span> +
+                      <span class="scribe-settings__kbd">Z</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="hint" id="scribe-settings-hotkeys-hint">
+                macOS 上将 Ctrl 替换为 ⌘。输入法组合输入时快捷键暂停。
+              </p>
+            </section>
+
+            <!-- About: hybrid shell note + debug + export -->
+            <section
+              role="tabpanel"
+              id="scribe-settings-pane-about"
+              class="scribe-settings__pane"
+              aria-labelledby="scribe-settings-tab-about"
+              hidden
+            >
+              <h3 id="scribe-settings-about-title">关于</h3>
+              <div>
+                <h4 id="scribe-settings-about-hybrid-title">混合外壳</h4>
+                <p class="hint" id="scribe-settings-about-hybrid">
+                  混合外壳：外层为 HTML/CSS，中心为 VectoJS 画布与无障碍投影。
+                </p>
+                <h4 id="scribe-settings-about-debug-title">调试</h4>
+                <p class="hint" id="scribe-settings-about-debug">
+                  添加 <code>?debug</code> 以附加开发者工具。
+                </p>
+                <h4 id="scribe-settings-about-export-title">导出</h4>
+                <p class="hint" id="scribe-settings-about-export">
+                  通过 Blob 与 FileSaver 下载。HTML 使用
+                  <code>outerHTML</code> 包装。
+                </p>
+              </div>
+            </section>
           </div>
         </div>
       </dialog>
