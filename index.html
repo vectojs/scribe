@@ -892,6 +892,53 @@
         background: var(--scribe-pane-bg);
       }
 
+      /* ── Inline WYSIWYG (Obsidian Live Preview) — per-block source overlay ── */
+      #scribe-inline-source {
+        position: absolute;
+        left: 0;
+        top: 0;
+        max-width: calc(100% - 32px);
+        background: var(--scribe-pane-bg);
+        border: 1px solid var(--scribe-accent);
+        border-left: 2px solid var(--scribe-accent);
+        border-radius: 6px;
+        box-shadow: 0 4px 16px rgba(61, 53, 41, 0.12);
+        padding: 8px 12px;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        color: var(--scribe-fg);
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow: hidden;
+        z-index: 4;
+        pointer-events: none;
+        opacity: 0;
+        transition:
+          opacity 120ms,
+          top 120ms cubic-bezier(0.32, 0.72, 0, 1),
+          height 120ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+
+      #scribe-inline-source.is-visible {
+        opacity: 1;
+      }
+
+      #scribe-inline-source:not([hidden]) {
+        display: block;
+      }
+
+      html[data-theme="dark"] #scribe-inline-source {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #scribe-inline-source {
+          transition: none;
+        }
+      }
+
       @media print {
         #scribe-header,
         #scribe-explorer,
@@ -1195,11 +1242,7 @@
           </svg>
           主题
         </button>
-        <select
-          id="scribe-lang-picker"
-          aria-label="语言"
-          title="语言"
-        >
+        <select id="scribe-lang-picker" aria-label="语言" title="语言">
           <option value="zh-CN">简体中文</option>
           <option value="en">English</option>
         </select>
@@ -1221,6 +1264,7 @@
           <canvas id="scribe-canvas" aria-label="Scribe 编辑器画布"></canvas>
           <div id="scribe-a11y-root"></div>
           <div id="scribe-focus-highlight" aria-hidden="true" hidden></div>
+          <div id="scribe-inline-source" aria-hidden="true" hidden></div>
           <div
             id="scribe-split-handle"
             role="separator"
@@ -1241,8 +1285,7 @@
               同步</label
             >
             <label
-              ><input type="checkbox" id="scribe-focus-mode" /> 专注
-              模式</label
+              ><input type="checkbox" id="scribe-focus-mode" /> 专注 模式</label
             >
             <div style="margin: 12px 0 8px">
               <label
@@ -1287,7 +1330,8 @@
           <div>
             <h2>导出</h2>
             <p class="hint">
-              通过 Blob 与 FileSaver 下载。HTML 使用 <code>outerHTML</code> 包装。
+              通过 Blob 与 FileSaver 下载。HTML 使用
+              <code>outerHTML</code> 包装。
             </p>
           </div>
         </aside>

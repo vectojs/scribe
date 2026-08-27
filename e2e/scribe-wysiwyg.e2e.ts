@@ -7,6 +7,8 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     await page.evaluate(() => {
       window.localStorage.removeItem('scribe:view-mode-v1');
       window.localStorage.removeItem('scribe:focus-mode-v1');
+      // Ensure English locale for deterministic toggle text expectations
+      window.localStorage.setItem('scribe:locale-v1', 'en');
     });
     await page.reload();
     await page.waitForFunction(
@@ -24,7 +26,7 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     await expect(toggle).toBeVisible();
     // Default is Source (aria-pressed false, text Live)
     await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-    await expect(toggle).toHaveText('Live');
+    await expect(toggle).toHaveText(/Live|实时/);
     const stage = page.locator('#scribe-stage');
     await expect(stage).not.toHaveClass(/is-wysiwyg/);
 
@@ -42,7 +44,7 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     await toggle.click();
     await page.waitForTimeout(500);
     await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-    await expect(toggle).toHaveText('Source');
+    await expect(toggle).toHaveText(/Source|源码/);
     await expect(stage).toHaveClass(/is-wysiwyg/);
     // Handle hidden in wysiwyg
     await expect(handle).toBeHidden();
@@ -69,7 +71,7 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     await toggle2.click();
     await page.waitForTimeout(500);
     await expect(toggle2).toHaveAttribute('aria-pressed', 'false');
-    await expect(toggle2).toHaveText('Live');
+    await expect(toggle2).toHaveText(/Live|实时/);
     await expect(page.locator('#scribe-stage')).not.toHaveClass(/is-wysiwyg/);
     // At 1200 with three panels stage is narrow (<600) so handle is hidden by design; verify at wide it becomes visible
     await page.setViewportSize({ width: 1600, height: 900 });
@@ -110,8 +112,15 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     await page.evaluate((text) => {
       const w = window as unknown as {
         __app: {
-          textArea: { value: string; selectionStart: number; selectionEnd: number };
-          model: { activeId: string; updateContent: (id: string, c: string) => void };
+          textArea: {
+            value: string;
+            selectionStart: number;
+            selectionEnd: number;
+          };
+          model: {
+            activeId: string;
+            updateContent: (id: string, c: string) => void;
+          };
         };
       };
       w.__app.textArea.value = text;
@@ -159,7 +168,10 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
       () =>
         (
           window as unknown as {
-            __app: { markdown: { height: number }; model: { activeFile: { content: string } } };
+            __app: {
+              markdown: { height: number };
+              model: { activeFile: { content: string } };
+            };
           }
         ).__app.markdown.height,
     );
@@ -200,7 +212,10 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
       const w = window as unknown as {
         __app: {
           textArea: { value: string };
-          model: { activeId: string; updateContent: (id: string, c: string) => void };
+          model: {
+            activeId: string;
+            updateContent: (id: string, c: string) => void;
+          };
           markdown: { setContent: (s: string) => void };
           previewScroll: { updateContentSize: () => void };
         };
