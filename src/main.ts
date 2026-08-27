@@ -28,12 +28,10 @@ import {
 } from './editor/ThemeManager';
 import { ScribeDocument } from './model/DocumentModel';
 import { isValidStageSize, markdownMaxWidth } from './utils/dpr';
-import { CloudSyncStub } from './model/cloudSync';
 import { loadDocumentWithStorage, saveDocumentWithStorage } from './model/storage';
 import { parseToc } from './model/toc';
 import { exportHtml, exportMarkdown, exportPdf } from './view/export';
 import { mountExplorer } from './view/explorer';
-import { renderSync } from './view/sync';
 import { getHeadingPositions, renderToc } from './view/toc';
 
 declare global {
@@ -95,7 +93,6 @@ function mountScribe(): void {
   const exportMdBtn = document.getElementById('scribe-export-md') as HTMLElement | null;
   const exportHtmlBtn = document.getElementById('scribe-export-html') as HTMLElement | null;
   const exportPdfBtn = document.getElementById('scribe-export-pdf') as HTMLElement | null;
-  const syncContainer = document.getElementById('scribe-sync') as HTMLElement | null;
   // Responsive shell hamburger/drawer hooks (CTX-0536)
   const menuToggle = document.getElementById('scribe-menu-toggle') as HTMLButtonElement | null;
   const settingsToggle = document.getElementById(
@@ -131,7 +128,6 @@ function mountScribe(): void {
   applyHtmlTheme(themeMode);
 
   const model = createDocument();
-  const cloudSync = new CloudSyncStub(window.localStorage);
 
   // ── Collapsible explorer / TOC (CTX-0539) ────────────────────────────────
   const EXPLORER_COLLAPSED_KEY = 'scribe:explorer-collapsed-v1';
@@ -1277,7 +1273,7 @@ function mountScribe(): void {
     applyAction(action);
   });
 
-  // Explorer + TOC + Sync + Export wiring (from CTX-0534)
+  // Explorer + TOC + Export wiring (from CTX-0534)
   const handleFileSwitch = (id: string): void => {
     try {
       model.setActive(id);
@@ -1342,10 +1338,6 @@ function mountScribe(): void {
 
   if (tocNav || tocListEl) {
     updateToc();
-  }
-
-  if (syncContainer) {
-    renderSync(syncContainer, cloudSync);
   }
 
   const bindExport = (): void => {
