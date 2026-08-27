@@ -54,6 +54,18 @@ function createDocument(): ScribeDocument {
   return new ScribeDocument();
 }
 
+function getMirrorTextarea(): HTMLTextAreaElement | null {
+  return (
+    (document.querySelector('[data-vecto-a11y-root] textarea') as HTMLTextAreaElement | null) ??
+    (document.querySelector('#scribe-a11y-root textarea') as HTMLTextAreaElement | null)
+  );
+}
+
+function isInA11yRoot(el: Element | null): boolean {
+  if (!el) return false;
+  return !!el.closest('[data-vecto-a11y-root], #scribe-a11y-root');
+}
+
 function persistDocument(doc: ScribeDocument): void {
   try {
     saveDocumentWithStorage(doc, window.localStorage);
@@ -434,7 +446,7 @@ function mountScribe(): void {
       );
       if (Math.abs(clamped - anyTA.scrollTop) > 2) {
         (textArea as unknown as { scrollTop: number }).scrollTop = clamped;
-        const mirror = document.querySelector('#scribe-a11y-root textarea') as HTMLElement | null;
+        const mirror = getMirrorTextarea() as HTMLElement | null;
         if (mirror) (mirror as unknown as { scrollTop: number }).scrollTop = clamped;
         guard.markPreviewSync();
         scene.markDirty();
@@ -456,7 +468,7 @@ function mountScribe(): void {
     const anyTA = textArea as unknown as { scrollTop: number };
     if (Math.abs(target - anyTA.scrollTop) > 2) {
       anyTA.scrollTop = target;
-      const mirror = document.querySelector('#scribe-a11y-root textarea') as HTMLElement | null;
+      const mirror = getMirrorTextarea() as HTMLElement | null;
       if (mirror) (mirror as unknown as { scrollTop: number }).scrollTop = target;
       guard.markPreviewSync();
       scene.markDirty();
@@ -592,9 +604,7 @@ function mountScribe(): void {
     textArea.value = next.value;
     textArea.selectionStart = next.selectionStart;
     textArea.selectionEnd = next.selectionEnd;
-    const mirror = document.querySelector(
-      '#scribe-a11y-root textarea',
-    ) as HTMLTextAreaElement | null;
+    const mirror = getMirrorTextarea();
     if (mirror) {
       mirror.value = next.value;
       mirror.selectionStart = next.selectionStart;
@@ -609,7 +619,7 @@ function mountScribe(): void {
     if (saveStatusEl) saveStatusEl.textContent = 'Edited';
     scene.markDirty();
     setTimeout(() => {
-      const m = document.querySelector('#scribe-a11y-root textarea') as HTMLTextAreaElement | null;
+      const m = getMirrorTextarea() as HTMLTextAreaElement | null;
       m?.focus();
     }, 0);
   };
@@ -696,7 +706,7 @@ function mountScribe(): void {
     const isEditorFocused =
       active?.tagName === 'TEXTAREA' ||
       active?.getAttribute('role') === 'textbox' ||
-      (active as HTMLElement | null)?.closest?.('#scribe-a11y-root') != null ||
+      isInA11yRoot(active as Element | null) ||
       textArea.focused;
     if (active && active !== document.body && active.tagName === 'INPUT' && !isEditorFocused)
       return false;
@@ -739,7 +749,7 @@ function mountScribe(): void {
     const action = shortcutForChord(chord);
     if (!action) return;
     const active = document.activeElement as HTMLElement | null;
-    const owns = active?.tagName === 'TEXTAREA' || active?.closest?.('#scribe-a11y-root') != null;
+    const owns = active?.tagName === 'TEXTAREA' || isInA11yRoot(active as Element | null);
     if (!owns) return;
     e.preventDefault();
     applyAction(action);
@@ -757,9 +767,7 @@ function mountScribe(): void {
     textArea.value = content;
     textArea.selectionStart = content.length;
     textArea.selectionEnd = content.length;
-    const mirror = document.querySelector(
-      '#scribe-a11y-root textarea',
-    ) as HTMLTextAreaElement | null;
+    const mirror = getMirrorTextarea();
     if (mirror) {
       mirror.value = content;
       mirror.selectionStart = content.length;
@@ -781,9 +789,7 @@ function mountScribe(): void {
       textArea.value = content;
       textArea.selectionStart = content.length;
       textArea.selectionEnd = content.length;
-      const mirror = document.querySelector(
-        '#scribe-a11y-root textarea',
-      ) as HTMLTextAreaElement | null;
+      const mirror = getMirrorTextarea();
       if (mirror) {
         mirror.value = content;
         mirror.selectionStart = content.length;
