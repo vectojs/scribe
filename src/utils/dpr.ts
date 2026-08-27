@@ -79,10 +79,40 @@ export function isValidStageSize(width: number, height: number): boolean {
 }
 
 /**
+ * Centered reading column max-width (Obsidian/Typora style).
+ * 860 is mid of 800-900 range, balanced gutters grow on wide screens.
+ */
+export const CENTERED_MAX_WIDTH = 860;
+
+/**
  * Max-width for the Markdown entity inside the stage.
+ * Centered (Obsidian/Typora): caps at 860 with balanced side gutters.
  * Keeps at least 320px readable even on 390px viewports (390 - 32 = 358 >= 320).
  */
 export function markdownMaxWidth(stageWidth: number): number {
   const safe = Number.isFinite(stageWidth) && stageWidth > 0 ? stageWidth : 320;
-  return Math.max(320, safe - 32);
+  const avail = safe - 32;
+  return Math.min(CENTERED_MAX_WIDTH, Math.max(320, avail));
+}
+
+/**
+ * Centered content width for a pane (editor or preview) — caps to 860 with
+ * balanced gutters, DPR/mobile responsive (shrinks to fill narrow panes).
+ */
+export function centeredPaneWidth(
+  paneWidth: number,
+  gutter = 16,
+  max = CENTERED_MAX_WIDTH,
+): number {
+  const safe = Number.isFinite(paneWidth) && paneWidth > 0 ? paneWidth : 320;
+  const usable = Math.max(120, safe - 2 * gutter);
+  return Math.min(max, usable);
+}
+
+/**
+ * Centered X offset for a pane's content — centers max-width column inside pane.
+ */
+export function centeredPaneX(paneWidth: number, contentWidth: number): number {
+  if (!Number.isFinite(paneWidth) || !Number.isFinite(contentWidth)) return 0;
+  return Math.max(0, Math.round((paneWidth - contentWidth) / 2));
 }
