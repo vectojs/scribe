@@ -8,7 +8,11 @@
       name="description"
       content="Scribe is a StackEdit-inspired markdown editor: hybrid HTML chrome with a VectoJS canvas core for source + preview."
     />
-    <link rel="icon" type="image/svg+xml" href="https://cdn.vectojs.org/scribe/logo.svg" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="https://cdn.vectojs.org/scribe/logo.svg"
+    />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Scribe — VectoJS Markdown Editor" />
     <meta
@@ -30,7 +34,7 @@
         overflow: hidden;
         background: #f7f4ee;
         color: #1a1a1a;
-        font-family: 'Inter', system-ui, sans-serif;
+        font-family: "Inter", system-ui, sans-serif;
       }
 
       #scribe-app {
@@ -69,6 +73,28 @@
         color: #8a8175;
       }
 
+      #scribe-export-group {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      #scribe-export-group button {
+        font-size: 12px;
+        font-family: system-ui, sans-serif;
+        padding: 6px 10px;
+        border: 1px solid #e5ddd3;
+        background: #fffdf9;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #3d3529;
+      }
+
+      #scribe-export-group button:hover {
+        background: #fdf0e6;
+        border-color: #d97757;
+      }
+
       #scribe-body {
         display: flex;
         flex: 1;
@@ -100,18 +126,68 @@
 
       #scribe-explorer li {
         padding: 6px 12px;
-        font-size: 13px;
+        font-size: 14px;
+        font-family: system-ui, sans-serif;
         cursor: pointer;
         border-left: 2px solid transparent;
       }
 
-      #scribe-explorer li[aria-selected='true'] {
+      #scribe-explorer li[aria-selected="true"] {
         background: #fdf0e6;
         border-left-color: #d97757;
         color: #3d3529;
       }
 
       #scribe-explorer li:hover {
+        background: #f5f0e8;
+      }
+
+      #scribe-toc {
+        width: 240px;
+        flex-shrink: 0;
+        border-right: 1px solid #e5ddd3;
+        background: #fffdf9;
+        overflow-y: auto;
+        padding: 12px 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      #scribe-toc h2 {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #8a8175;
+        padding: 0 12px 8px;
+        flex-shrink: 0;
+      }
+
+      #scribe-toc-list {
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      #scribe-toc ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      #scribe-toc li a {
+        display: block;
+        padding: 4px 12px;
+        font-size: 13px;
+        font-family: system-ui, sans-serif;
+        color: #3d3529;
+        text-decoration: none;
+        border-left: 2px solid transparent;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      #scribe-toc li a:hover {
         background: #f7f4ee;
       }
 
@@ -143,6 +219,9 @@
         background: #fffdf9;
         overflow-y: auto;
         padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
       }
 
       #scribe-settings h2 {
@@ -167,6 +246,15 @@
         color: #8a8175;
         margin-top: 8px;
       }
+
+      #scribe-sync {
+        border-top: 1px solid #e5ddd3;
+        padding-top: 12px;
+      }
+
+      #scribe-sync button:hover {
+        background: #fdf0e6;
+      }
     </style>
   </head>
   <body>
@@ -175,6 +263,17 @@
         <h1>Scribe</h1>
         <span id="scribe-file-name" aria-live="polite">Untitled.md</span>
         <span id="scribe-save-status" aria-live="polite">Saved</span>
+        <div id="scribe-export-group" aria-label="Export">
+          <button id="scribe-export-md" type="button" title="Download Markdown">
+            MD
+          </button>
+          <button id="scribe-export-html" type="button" title="Download HTML">
+            HTML
+          </button>
+          <button id="scribe-export-pdf" type="button" title="Print / Save PDF">
+            PDF
+          </button>
+        </div>
       </header>
       <div id="scribe-body">
         <nav id="scribe-explorer" aria-label="File explorer">
@@ -185,16 +284,33 @@
             <li role="option" aria-selected="false">Notes.md</li>
           </ul>
         </nav>
+        <nav id="scribe-toc" aria-label="Table of contents">
+          <h2>Outline</h2>
+          <div id="scribe-toc-list" role="tree" aria-label="Headings"></div>
+        </nav>
         <div id="scribe-stage" aria-label="Editor stage">
           <canvas id="scribe-canvas" aria-label="Scribe editor canvas"></canvas>
           <div id="scribe-a11y-root"></div>
         </div>
         <aside id="scribe-settings" aria-label="Settings">
-          <h2>Settings</h2>
-          <label><input type="checkbox" checked /> Live preview</label>
-          <label><input type="checkbox" checked /> Scroll sync</label>
-          <p class="hint">Hybrid shell: outer chrome is plain HTML/CSS; center stage is VectoJS canvas + a11y projection.</p>
-          <p class="hint">Add <code>?debug</code> to attach devtools.</p>
+          <div>
+            <h2>Settings</h2>
+            <label><input type="checkbox" checked /> Live preview</label>
+            <label><input type="checkbox" checked /> Scroll sync</label>
+            <p class="hint">
+              Hybrid shell: outer chrome is plain HTML/CSS; center stage is
+              VectoJS canvas + a11y projection.
+            </p>
+            <p class="hint">Add <code>?debug</code> to attach devtools.</p>
+          </div>
+          <div>
+            <h2>Export</h2>
+            <p class="hint">
+              Downloads via Blob + FileSaver pattern. HTML via
+              <code>outerHTML</code> wrapper.
+            </p>
+          </div>
+          <div id="scribe-sync" aria-label="Cloud sync"></div>
         </aside>
       </div>
     </div>
