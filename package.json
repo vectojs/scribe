@@ -28,7 +28,8 @@
     "@vectojs/core": "1.39.1",
     "@vectojs/markdown": "0.23.0",
     "@vectojs/styles": "0.3.3",
-    "@vectojs/ui": "2.20.1"
+    "@vectojs/ui": "2.20.1",
+    "marked": "^18.0.10"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",

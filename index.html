@@ -154,6 +154,11 @@
         border-color: var(--scribe-accent);
       }
 
+      #scribe-toolbar button:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 1px;
+      }
+
       #scribe-toolbar button svg {
         width: 16px;
         height: 16px;
@@ -176,6 +181,33 @@
         gap: 6px;
         font-size: 12px;
         font-weight: 500;
+      }
+
+      #scribe-export-group {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      #scribe-export-group button {
+        font-size: 12px;
+        font-family: system-ui, sans-serif;
+        padding: 6px 10px;
+        border: 1px solid var(--scribe-border);
+        background: var(--scribe-pane-bg);
+        border-radius: 6px;
+        cursor: pointer;
+        color: var(--scribe-muted);
+      }
+
+      #scribe-export-group button:hover {
+        background: var(--scribe-accent-bg);
+        border-color: var(--scribe-accent);
+      }
+
+      #scribe-export-group button:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 1px;
       }
 
       #scribe-body {
@@ -224,13 +256,66 @@
         background: var(--scribe-bg);
       }
 
+      #scribe-toc {
+        width: 240px;
+        flex-shrink: 0;
+        border-right: 1px solid var(--scribe-border);
+        background: var(--scribe-pane-bg);
+        overflow-y: auto;
+        padding: 12px 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      #scribe-toc h2 {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--scribe-muted-2);
+        padding: 0 12px 8px;
+        flex-shrink: 0;
+      }
+
+      #scribe-toc-list {
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      #scribe-toc ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      #scribe-toc li a {
+        display: block;
+        padding: 4px 12px;
+        font-size: 13px;
+        font-family: system-ui, sans-serif;
+        color: var(--scribe-fg);
+        text-decoration: none;
+        border-left: 2px solid transparent;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      #scribe-toc li a:hover {
+        background: var(--scribe-bg);
+      }
+
+      #scribe-toc li a:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: -2px;
+      }
+
       #scribe-stage {
         flex: 1;
         min-width: 0;
         position: relative;
         overflow: hidden;
         background: var(--scribe-bg);
-        /* spacing spec: 16px padding around canvas is handled in JS via maxWidth; gap 8px between panes is the handle */
       }
 
       #scribe-canvas {
@@ -290,6 +375,9 @@
         background: var(--scribe-pane-bg);
         overflow-y: auto;
         padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
       }
 
       #scribe-settings h2 {
@@ -315,8 +403,21 @@
         margin-top: 8px;
       }
 
+      #scribe-sync {
+        border-top: 1px solid var(--scribe-border);
+        padding-top: 12px;
+      }
+
+      #scribe-sync button:hover {
+        background: var(--scribe-accent-bg);
+      }
+
       @media (max-width: 900px) {
         #scribe-explorer {
+          display: none;
+        }
+
+        #scribe-toc {
           display: none;
         }
 
@@ -342,6 +443,32 @@
         <h1>Scribe</h1>
         <span id="scribe-file-name" aria-live="polite">Untitled.md</span>
         <span id="scribe-save-status" aria-live="polite">Saved</span>
+        <div id="scribe-export-group" aria-label="Export">
+          <button
+            id="scribe-export-md"
+            type="button"
+            title="Download Markdown"
+            aria-label="Download Markdown"
+          >
+            MD
+          </button>
+          <button
+            id="scribe-export-html"
+            type="button"
+            title="Download HTML"
+            aria-label="Download HTML"
+          >
+            HTML
+          </button>
+          <button
+            id="scribe-export-pdf"
+            type="button"
+            title="Print / Save PDF"
+            aria-label="Print PDF"
+          >
+            PDF
+          </button>
+        </div>
       </header>
       <!-- Toolbar: StackEdit/Typora familiar row, HTML buttons with inline SVG (cdn-vectojs/scribe/*) -->
       <div id="scribe-toolbar" role="toolbar" aria-label="Markdown formatting">
@@ -520,6 +647,10 @@
             <li role="option" aria-selected="false">Notes.md</li>
           </ul>
         </nav>
+        <nav id="scribe-toc" aria-label="Table of contents">
+          <h2>Outline</h2>
+          <div id="scribe-toc-list" role="tree" aria-label="Headings"></div>
+        </nav>
         <div id="scribe-stage" aria-label="Editor stage">
           <canvas id="scribe-canvas" aria-label="Scribe editor canvas"></canvas>
           <div id="scribe-a11y-root"></div>
@@ -532,20 +663,30 @@
           ></div>
         </div>
         <aside id="scribe-settings" aria-label="Settings">
-          <h2>Settings</h2>
-          <label
-            ><input type="checkbox" id="scribe-live-preview" checked /> Live
-            preview</label
-          >
-          <label
-            ><input type="checkbox" id="scribe-scroll-sync" checked /> Scroll
-            sync</label
-          >
-          <p class="hint">
-            Hybrid shell: outer chrome is plain HTML/CSS; center stage is
-            VectoJS canvas + a11y projection.
-          </p>
-          <p class="hint">Add <code>?debug</code> to attach devtools.</p>
+          <div>
+            <h2>Settings</h2>
+            <label
+              ><input type="checkbox" id="scribe-live-preview" checked /> Live
+              preview</label
+            >
+            <label
+              ><input type="checkbox" id="scribe-scroll-sync" checked /> Scroll
+              sync</label
+            >
+            <p class="hint">
+              Hybrid shell: outer chrome is plain HTML/CSS; center stage is
+              VectoJS canvas + a11y projection.
+            </p>
+            <p class="hint">Add <code>?debug</code> to attach devtools.</p>
+          </div>
+          <div>
+            <h2>Export</h2>
+            <p class="hint">
+              Downloads via Blob + FileSaver pattern. HTML via
+              <code>outerHTML</code> wrapper.
+            </p>
+          </div>
+          <div id="scribe-sync" aria-label="Cloud sync"></div>
         </aside>
       </div>
     </div>

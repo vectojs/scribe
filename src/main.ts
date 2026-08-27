@@ -1,6 +1,6 @@
 import { Scene } from '@vectojs/core';
 import { Markdown, PRESET_THEMES } from '@vectojs/markdown';
-import { ScrollView, TextArea } from '@vectojs/ui';
+import { DOCUMENT_SCROLL_PHYSICS, ScrollView, TextArea } from '@vectojs/ui';
 
 import {
   debounce,
@@ -24,6 +24,13 @@ import {
   PRESET_FOR_MODE,
 } from './editor/ThemeManager';
 import { ScribeDocument } from './model/DocumentModel';
+import { CloudSyncStub } from './model/cloudSync';
+import { loadDocumentWithStorage, saveDocumentWithStorage } from './model/storage';
+import { parseToc } from './model/toc';
+import { exportHtml, exportMarkdown, exportPdf } from './view/export';
+import { mountExplorer } from './view/explorer';
+import { renderSync } from './view/sync';
+import { getHeadingPositions, renderToc } from './view/toc';
 
 declare global {
   interface Window {
@@ -37,39 +44,22 @@ declare global {
   }
 }
 
-const STORAGE_KEY = 'scribe:active-doc-v1';
-
-function createDefaultDocument(): ScribeDocument {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as {
-        files?: { id: string; name: string; content: string }[];
-        activeId?: string;
-      };
-      if (Array.isArray(parsed.files) && parsed.files.length > 0) {
-        const doc = new ScribeDocument(parsed.files);
-        if (parsed.activeId) {
-          try {
-            doc.setActive(parsed.activeId);
-          } catch {
-            // ignore stale activeId
-          }
-        }
-        return doc;
-      }
-    } catch {
-      // ignore corrupt storage
-    }
+function createDocument(): ScribeDocument {
+  try {
+    const loaded = loadDocumentWithStorage(window.localStorage);
+    if (loaded) return loaded;
+  } catch {
+    // ignore
   }
   return new ScribeDocument();
 }
 
 function persistDocument(doc: ScribeDocument): void {
-  window.localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({ files: doc.files, activeId: doc.activeId }),
-  );
+  try {
+    saveDocumentWithStorage(doc, window.localStorage);
+  } catch {
+    // ignore quota
+  }
 }
 
 function mountScribe(): void {
@@ -83,6 +73,13 @@ function mountScribe(): void {
   const themeToggle = document.getElementById('scribe-theme-toggle') as HTMLButtonElement | null;
   const livePreviewCb = document.getElementById('scribe-live-preview') as HTMLInputElement | null;
   const scrollSyncCb = document.getElementById('scribe-scroll-sync') as HTMLInputElement | null;
+  const explorerNav = document.getElementById('scribe-explorer') as HTMLElement | null;
+  const tocNav = document.getElementById('scribe-toc') as HTMLElement | null;
+  const tocListEl = document.getElementById('scribe-toc-list') as HTMLElement | null;
+  const exportMdBtn = document.getElementById('scribe-export-md') as HTMLElement | null;
+  const exportHtmlBtn = document.getElementById('scribe-export-html') as HTMLElement | null;
+  const exportPdfBtn = document.getElementById('scribe-export-pdf') as HTMLElement | null;
+  const syncContainer = document.getElementById('scribe-sync') as HTMLElement | null;
 
   if (!canvas || !stage) throw new Error('Scribe requires #scribe-canvas and #scribe-stage');
 
@@ -92,9 +89,9 @@ function mountScribe(): void {
   };
   applyHtmlTheme(themeMode);
 
-  const model = createDefaultDocument();
+  const model = createDocument();
+  const cloudSync = new CloudSyncStub(window.localStorage);
 
-  // Hybrid shell: Scene is confined to #scribe-stage, not full window.
   const scene = new Scene(canvas, {
     disableWindowResize: true,
   });
@@ -132,18 +129,15 @@ function mountScribe(): void {
     placeholder: 'Start writing markdown here…',
     label: 'Markdown source',
     onChange: (next) => {
-      // Guard IME composition: TextArea already updated value/selection internally.
-      // We update model + preview, but don't re-enter during composition.
       if (textArea.composition) return;
       model.updateContent(model.activeId, next);
-      // Debounced preview rebuild to avoid thrashing on fast typing
       debouncedRender(next);
       persistDocument(model);
       if (saveStatusEl) saveStatusEl.textContent = 'Edited';
     },
   });
 
-  // Markdown preview — right pane inside ScrollView
+  // Markdown preview — right pane inside ScrollView with document-like physics (no bounce)
   const initialPreviewWidth = Math.max(320, 600);
   const markdown = new Markdown(textArea.value, {
     maxWidth: initialPreviewWidth,
@@ -154,8 +148,8 @@ function mountScribe(): void {
   const previewScroll = new ScrollView({
     width: 400,
     height: 400,
+    scrollPhysics: DOCUMENT_SCROLL_PHYSICS,
   });
-  // Critical: document-like scroll physics (no bounce) — matches spec
   previewScroll.add(markdown);
 
   // Position entities manually: Scene has no auto-layout for this split
@@ -168,11 +162,13 @@ function mountScribe(): void {
   scene.add(previewScroll);
   scene.start();
 
-  // Chrome updates
+  // Chrome updates (file name + save status). Explorer is handled via mountExplorer separately.
   const updateChrome = (): void => {
     const active = model.activeFile;
     if (fileNameEl) fileNameEl.textContent = active?.name ?? 'Untitled.md';
-    if (fileListEl) {
+    if (saveStatusEl) saveStatusEl.textContent = 'Saved';
+    // Fallback for legacy file list if explorerNav not present
+    if (!explorerNav && fileListEl) {
       fileListEl.innerHTML = '';
       for (const f of model.files) {
         const li = document.createElement('li');
@@ -182,20 +178,40 @@ function mountScribe(): void {
         li.addEventListener('click', () => {
           model.setActive(f.id);
           persistDocument(model);
-          // Sync editor + preview to new file
           const content = model.activeFile?.content ?? '';
           textArea.value = content;
-          // Keep selection at end
           textArea.selectionStart = content.length;
           textArea.selectionEnd = content.length;
           markdown.setContent(content);
           updateChrome();
+          updateToc();
+          previewScroll.updateContentSize();
           scene.markDirty();
         });
         fileListEl.appendChild(li);
       }
     }
-    if (saveStatusEl) saveStatusEl.textContent = 'Saved';
+  };
+
+  const updateToc = (): void => {
+    const target = tocListEl ?? tocNav;
+    if (!target) return;
+    const text = model.activeFile?.content ?? textArea.value ?? '';
+    const entries = parseToc(text);
+    const positionMap = getHeadingPositions(markdown, text, entries);
+    renderToc(
+      target,
+      text,
+      (y) => {
+        previewScroll.scrollTo(y);
+        scene.markDirty();
+      },
+      () => positionMap,
+    );
+    if (tocNav && tocListEl) {
+      const header = tocNav.querySelector('h2');
+      if (header) header.textContent = `Outline (${entries.length})`;
+    }
   };
 
   let livePreview = livePreviewCb?.checked ?? true;
@@ -204,7 +220,10 @@ function mountScribe(): void {
   livePreviewCb?.addEventListener('change', () => {
     livePreview = livePreviewCb.checked;
     if (livePreview) {
-      markdown.setContent(textArea.value);
+      const content = textArea.value;
+      markdown.setContent(content);
+      previewScroll.updateContentSize();
+      updateToc();
       scene.markDirty();
     }
   });
@@ -215,10 +234,13 @@ function mountScribe(): void {
   const renderMarkdownImmediate = (content: string): void => {
     if (!livePreview) return;
     markdown.setContent(content);
-    // After rebuild, sync preview scroll to editor ratio
+    previewScroll.updateContentSize();
+    updateChrome();
+    updateToc();
     if (scrollSyncEnabled) syncEditorToPreview();
     scene.markDirty();
   };
+
   const debouncedRender = debounce((content: unknown) => {
     renderMarkdownImmediate(String(content));
     if (saveStatusEl) saveStatusEl.textContent = 'Saved';
@@ -242,16 +264,13 @@ function mountScribe(): void {
       lineHeightFactor: number;
       font: string;
     };
-    // lineHeight in CSS px
     const lh = (() => {
       const m = /([0-9.]+)px/.exec(anyTA.font);
       const fs = m ? Number.parseFloat(m[1]) : 14;
       return fs * (anyTA.lineHeightFactor ?? 1.6);
     })();
-    // Estimate editor scrollHeight from wrapped lines
     const innerH = anyTA.height - 2 * anyTA.padding;
     void innerH;
-    // Use TextArea's internal line count via lineOfOffset on last offset
     const lineCount = (() => {
       try {
         return (
@@ -274,7 +293,6 @@ function mountScribe(): void {
     })();
     const scrollTop = anyTA.scrollTop ?? 0;
     const viewportHeight = anyTA.height - 2 * anyTA.padding;
-    // scrollHeight = lineCount * lh + 2*padding (approx). Real TextArea clips to innerH, so scrollHeight = max(viewport, lines*lh+padding*2?) Align with render math.
     const contentH = lineCount * lh + 2 * anyTA.padding;
     const scrollHeight = Math.max(anyTA.height, contentH);
     return { scrollTop, scrollHeight, viewportHeight, lineCount, caretLine };
@@ -315,7 +333,6 @@ function mountScribe(): void {
     } catch {
       // ignore
     }
-    // Fallback: derive from markdown.height and line count estimate
     return [];
   };
 
@@ -324,13 +341,10 @@ function mountScribe(): void {
     if (!guard.shouldSyncFromEditor()) return;
     const e = getEditorMetrics();
     const p = getPreviewMetrics();
-    // Prefer line-box mapping when available (StackEdit-accurate), else proportional
     const boxes = getMarkdownLineBoxes();
     let target = 0;
     if (boxes.length > 0) {
       target = mapEditorLineToPreviewOffset(e.caretLine, e.lineCount, boxes, p.viewportHeight);
-      // If caret line mapping yields small value but editor is scrolled far proportionally, blend? For now prefer line mapping.
-      // Fallback proportional when line mapping is near 0 but editor near bottom
       const prop = mapEditorToPreview(
         {
           scrollTop: e.scrollTop,
@@ -343,7 +357,6 @@ function mountScribe(): void {
           viewportHeight: p.viewportHeight,
         },
       );
-      // Use whichever is larger when editor is scrolled (ensures not stuck at top)
       if (prop > target && e.scrollTop > 10) target = prop;
     } else {
       target = mapEditorToPreview(
@@ -369,12 +382,9 @@ function mountScribe(): void {
     if (!guard.shouldSyncFromPreview()) return;
     const e = getEditorMetrics();
     const p = getPreviewMetrics();
-    // Keep caret visible: scroll editor so caret line is in view if preview moves far
     const boxes = getMarkdownLineBoxes();
     if (boxes.length > 0) {
-      // Map preview offset back to editor line, then ensure editor scroll shows it
       const targetLine = (() => {
-        // Reuse mapPreviewOffsetToEditorLine from ScrollSync but avoid import cycle - inline here
         let idx = 0;
         for (let i = 0; i < boxes.length; i++) {
           if (boxes[i].y >= p.scrollTop) {
@@ -405,7 +415,6 @@ function mountScribe(): void {
       let desired = anyTA.scrollTop;
       if (caretY < anyTA.scrollTop) desired = caretY;
       else if (caretY > anyTA.scrollTop + viewportH - lh) desired = caretY - viewportH + lh;
-      // Also blend proportional as fallback
       const prop = mapPreviewToEditor(
         {
           scrollTop: p.scrollTop,
@@ -418,7 +427,6 @@ function mountScribe(): void {
           viewportHeight: e.viewportHeight,
         },
       );
-      // If caret-derived desired is near 0 but preview is scrolled, use proportional
       if (prop > desired && p.scrollTop > 20) desired = prop;
       const clamped = Math.max(
         0,
@@ -426,7 +434,6 @@ function mountScribe(): void {
       );
       if (Math.abs(clamped - anyTA.scrollTop) > 2) {
         (textArea as unknown as { scrollTop: number }).scrollTop = clamped;
-        // Also nudge shadow textarea scrollTop directly for immediate browser sync
         const mirror = document.querySelector('#scribe-a11y-root textarea') as HTMLElement | null;
         if (mirror) (mirror as unknown as { scrollTop: number }).scrollTop = clamped;
         guard.markPreviewSync();
@@ -459,18 +466,12 @@ function mountScribe(): void {
   const debouncedEditorSync = debounce(() => syncEditorToPreview(), 16) as () => void;
   const debouncedPreviewSync = debounce(() => syncPreviewToEditor(), 16) as () => void;
 
-  // TextArea scroll → preview
   textArea.on('scroll', () => {
     if (!scrollSyncEnabled) return;
     debouncedEditorSync();
   });
-  // Also poll TextArea scroll via a11y mirror scroll event (browser owns it)
-  // The Scene already mirrors TextArea scroll via 'scroll' event above, but we also
-  // handle direct wheel on editor pane by debouncing after each frame.
-  // Preview scroll → editor: hook ScrollView wheel/pointer
   previewScroll.on('wheel', () => {
     if (!scrollSyncEnabled) return;
-    // ScrollView's targetY updates synchronously; content.y springs, so wait a tick
     setTimeout(() => debouncedPreviewSync(), 18);
   });
   previewScroll.on('pointermove', () => {
@@ -490,10 +491,8 @@ function mountScribe(): void {
 
     const availW = Math.max(320, w);
     const availH = Math.max(200, h);
-    // Single-canvas split: left = TextArea, right = ScrollView, handle in middle
     const editorW = Math.round((availW - GAP - HANDLE_W) * splitRatio);
     const previewW = Math.max(200, availW - editorW - GAP - HANDLE_W);
-
     const paneH = availH - 2 * OUTER_PAD;
 
     textArea.width = Math.max(200, editorW - OUTER_PAD);
@@ -506,10 +505,8 @@ function mountScribe(): void {
     previewScroll.x = editorW + GAP + HANDLE_W;
     previewScroll.y = OUTER_PAD;
 
-    // Markdown reflows to preview inner width (minus 32px gutter spec: 16px padding each side)
     markdown.setMaxWidth(Math.max(200, previewW - 32));
 
-    // Position HTML handle
     if (handle) {
       const handleX = editorW + GAP;
       handle.style.left = `${handleX}px`;
@@ -522,7 +519,6 @@ function mountScribe(): void {
 
   const observer = new ResizeObserver(layout);
   observer.observe(stage);
-  // Initial
   layout();
 
   // Drag handle
@@ -562,7 +558,6 @@ function mountScribe(): void {
       window.addEventListener('pointerup', onPointerUp);
       ev.preventDefault();
     });
-    // Keyboard support for handle
     handle.addEventListener('keydown', (ev) => {
       if (ev.key === 'ArrowLeft') {
         splitRatio = Math.max(0.25, splitRatio - 0.05);
@@ -594,12 +589,9 @@ function mountScribe(): void {
       selectionEnd: textArea.selectionEnd,
     };
     const next = applyToolbarAction(sel, action);
-    // Update TextArea model + selection
     textArea.value = next.value;
     textArea.selectionStart = next.selectionStart;
     textArea.selectionEnd = next.selectionEnd;
-    // Ensure TextArea's shadow textarea reflects new value/selection
-    // The a11y projection will pick up new value on next sync; also sync DOM directly for immediacy
     const mirror = document.querySelector(
       '#scribe-a11y-root textarea',
     ) as HTMLTextAreaElement | null;
@@ -609,7 +601,6 @@ function mountScribe(): void {
       mirror.selectionEnd = next.selectionEnd;
       mirror.focus();
     } else {
-      // Fallback: focus canvas to keep keyboard channel? No — ensure TextArea focused flag?
       (textArea as unknown as { focused: boolean }).focused = true;
     }
     model.updateContent(model.activeId, next.value);
@@ -617,7 +608,6 @@ function mountScribe(): void {
     persistDocument(model);
     if (saveStatusEl) saveStatusEl.textContent = 'Edited';
     scene.markDirty();
-    // After action, keep focus on editor for continued typing
     setTimeout(() => {
       const m = document.querySelector('#scribe-a11y-root textarea') as HTMLTextAreaElement | null;
       m?.focus();
@@ -635,22 +625,63 @@ function mountScribe(): void {
     applyAction(action);
   });
 
+  // Toolbar keyboard navigation (a11y polish): arrow keys rove focus, Home/End, Enter/Space activate
+  const setupToolbarKeyboardNav = (): void => {
+    if (!toolbarEl) return;
+    const getButtons = (): HTMLButtonElement[] =>
+      Array.from(toolbarEl.querySelectorAll('button[data-action]')) as HTMLButtonElement[];
+    toolbarEl.addEventListener('keydown', (e) => {
+      const buttons = getButtons();
+      if (buttons.length === 0) return;
+      const active = document.activeElement as HTMLElement | null;
+      const idx = buttons.indexOf(active as HTMLButtonElement);
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const dir = e.key === 'ArrowRight' ? 1 : -1;
+        const nextIdx =
+          idx >= 0
+            ? (idx + dir + buttons.length) % buttons.length
+            : dir > 0
+              ? 0
+              : buttons.length - 1;
+        buttons[nextIdx].focus();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        buttons[0].focus();
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        buttons[buttons.length - 1].focus();
+      }
+    });
+    // Ensure toolbar buttons are tabbable in roving manner: first is tabIndex 0, others -1 initially
+    const buttons = getButtons();
+    buttons.forEach((b, i) => {
+      b.tabIndex = i === 0 ? 0 : -1;
+    });
+    toolbarEl.addEventListener('focusin', (e) => {
+      const target = e.target as HTMLButtonElement;
+      if (target.matches('button[data-action]')) {
+        buttons.forEach((b) => {
+          b.tabIndex = b === target ? 0 : -1;
+        });
+      }
+    });
+  };
+  setupToolbarKeyboardNav();
+
   // Theme toggle
   const updateTheme = (mode: ThemeMode): void => {
     themeMode = mode;
     applyHtmlTheme(mode);
     persistTheme(mode);
-    // Markdown preset
     const preset = PRESET_FOR_MODE[mode] as keyof typeof PRESET_THEMES;
     markdown.setTheme(preset);
-    // TextArea colors follow shell tokens
     const tokens = TOKENS_BY_MODE[mode];
     textArea.bg = tokens.paneBg;
     textArea.color = tokens.shellFg;
     textArea.border = tokens.border;
     scene.markDirty();
   };
-  // Init theme already applied to HTML; now sync entities
   updateTheme(themeMode);
   themeToggle?.addEventListener('click', () => {
     updateTheme(toggleMode(themeMode));
@@ -658,18 +689,15 @@ function mountScribe(): void {
 
   // Keyboard shortcuts via Scene channel + window fallback (without breaking IME)
   const handleShortcut = (rawChord: string, nativeEvent: KeyboardEvent): boolean => {
-    // Don't handle while composing CJK
     if (isComposingEvent(nativeEvent)) return false;
     const action = shortcutForChord(rawChord);
     if (!action) return false;
-    // Only when editor is focused (owns keyboard) or when no input owns it
     const active = document.activeElement;
     const isEditorFocused =
       active?.tagName === 'TEXTAREA' ||
       active?.getAttribute('role') === 'textbox' ||
       (active as HTMLElement | null)?.closest?.('#scribe-a11y-root') != null ||
       textArea.focused;
-    // If some other input owns keyboard (e.g., file rename), don't hijack
     if (active && active !== document.body && active.tagName === 'INPUT' && !isEditorFocused)
       return false;
     nativeEvent.preventDefault();
@@ -677,7 +705,6 @@ function mountScribe(): void {
     return true;
   };
 
-  // Scene-level channel (VectoJS keyboard system)
   scene.on(
     'keydown',
     (e: {
@@ -688,7 +715,6 @@ function mountScribe(): void {
       altKey: boolean;
       nativeEvent: KeyboardEvent;
     }) => {
-      // Build chord string like normalizeChord does: ctrl/meta + shift + key
       const parts: string[] = [];
       if (e.ctrlKey) parts.push('ctrl');
       if (e.metaKey) parts.push('meta');
@@ -696,28 +722,22 @@ function mountScribe(): void {
       if (e.shiftKey) parts.push('shift');
       parts.push(e.key.toLowerCase());
       const chord = parts.join('+');
-      // Also try without meta aliasing ctrl vs meta (shortcutForChord handles both)
       handleShortcut(chord, e.nativeEvent);
     },
   );
 
-  // Window fallback for when a11y textarea owns focus (Scene channel suppressed by ownsKeyboard)
   window.addEventListener('keydown', (e) => {
-    // Ignore if IME composing
     if (isComposingEvent(e)) return;
     const chordParts: string[] = [];
     if (e.ctrlKey) chordParts.push('ctrl');
     if (e.metaKey) chordParts.push('meta');
     if (e.altKey) chordParts.push('alt');
     if (e.shiftKey) chordParts.push('shift');
-    // Normalize key: single char → lower, else as-is
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase();
     chordParts.push(key);
     const chord = chordParts.join('+');
-    // Only handle known shortcuts; otherwise let browser handle (crucial for IME)
     const action = shortcutForChord(chord);
     if (!action) return;
-    // Only when editor projection is focused
     const active = document.activeElement as HTMLElement | null;
     const owns = active?.tagName === 'TEXTAREA' || active?.closest?.('#scribe-a11y-root') != null;
     if (!owns) return;
@@ -725,7 +745,95 @@ function mountScribe(): void {
     applyAction(action);
   });
 
+  // Explorer + TOC + Sync + Export wiring (from CTX-0534)
+  const handleFileSwitch = (id: string): void => {
+    try {
+      model.setActive(id);
+    } catch {
+      return;
+    }
+    persistDocument(model);
+    const content = model.activeFile?.content ?? '';
+    textArea.value = content;
+    textArea.selectionStart = content.length;
+    textArea.selectionEnd = content.length;
+    const mirror = document.querySelector(
+      '#scribe-a11y-root textarea',
+    ) as HTMLTextAreaElement | null;
+    if (mirror) {
+      mirror.value = content;
+      mirror.selectionStart = content.length;
+      mirror.selectionEnd = content.length;
+    }
+    markdown.setContent(content);
+    previewScroll.updateContentSize();
+    updateChrome();
+    updateToc();
+    scene.markDirty();
+  };
+
+  if (explorerNav) {
+    mountExplorer(explorerNav, model, () => {
+      const active = model.activeFile;
+      if (!active) return;
+      const content = active.content;
+      // Sync editor source and preview to newly active or mutated file
+      textArea.value = content;
+      textArea.selectionStart = content.length;
+      textArea.selectionEnd = content.length;
+      const mirror = document.querySelector(
+        '#scribe-a11y-root textarea',
+      ) as HTMLTextAreaElement | null;
+      if (mirror) {
+        mirror.value = content;
+        mirror.selectionStart = content.length;
+        mirror.selectionEnd = content.length;
+      }
+      markdown.setContent(content);
+      previewScroll.updateContentSize();
+      updateChrome();
+      updateToc();
+      persistDocument(model);
+      scene.markDirty();
+    });
+  }
+
+  if (tocNav || tocListEl) {
+    updateToc();
+  }
+
+  if (syncContainer) {
+    renderSync(syncContainer, cloudSync);
+  }
+
+  const bindExport = (): void => {
+    if (exportMdBtn) {
+      exportMdBtn.addEventListener('click', () => {
+        const active = model.activeFile;
+        if (!active) return;
+        exportMarkdown(active.name, active.content);
+      });
+    }
+    if (exportHtmlBtn) {
+      exportHtmlBtn.addEventListener('click', () => {
+        const active = model.activeFile;
+        if (!active) return;
+        exportHtml(active.name, active.content, active.name);
+      });
+    }
+    if (exportPdfBtn) {
+      exportPdfBtn.addEventListener('click', () => {
+        const active = model.activeFile;
+        if (!active) return;
+        exportPdf(active.name, active.content, active.name);
+      });
+    }
+  };
+  bindExport();
+
+  // Initial chrome + toc
   updateChrome();
+  updateToc();
 
   // Persistence
   window.addEventListener('beforeunload', () => {
@@ -738,6 +846,19 @@ function mountScribe(): void {
     applyAction;
   (window as unknown as { __scribeSyncEditorToPreview: () => void }).__scribeSyncEditorToPreview =
     syncEditorToPreview;
+  (window as unknown as { __scribeRenderMarkdown: () => void }).__scribeRenderMarkdown = () => {
+    if (model.activeFile) {
+      markdown.setContent(model.activeFile.content);
+      previewScroll.updateContentSize();
+      updateChrome();
+      updateToc();
+      scene.markDirty();
+    }
+  };
+  (window as unknown as { __scribeUpdateToc: () => void }).__scribeUpdateToc = updateToc;
+  (
+    window as unknown as { __scribeHandleFileSwitch: (id: string) => void }
+  ).__scribeHandleFileSwitch = handleFileSwitch;
 
   const maybeAttachDevtools = async (): Promise<void> => {
     if (!new URLSearchParams(window.location.search).has('debug')) return;
@@ -750,7 +871,6 @@ function mountScribe(): void {
   };
   void maybeAttachDevtools();
 
-  // Re-apply split after fonts load (affects line boxing)
   if (document.fonts?.ready) {
     void document.fonts.ready.then(() => layout());
   }
