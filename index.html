@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scribe — VectoJS Markdown Editor</title>
+    <meta
+      name="description"
+      content="Scribe is a StackEdit-inspired markdown editor: hybrid HTML chrome with a VectoJS canvas core for source + preview."
+    />
+    <link rel="icon" type="image/svg+xml" href="https://cdn.vectojs.org/scribe/logo.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Scribe — VectoJS Markdown Editor" />
+    <meta
+      property="og:description"
+      content="Hybrid HTML shell + VectoJS canvas markdown editor (StackEdit reference)."
+    />
+    <meta property="og:url" content="https://scribe.vectojs.org/" />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #f7f4ee;
+        color: #1a1a1a;
+        font-family: 'Inter', system-ui, sans-serif;
+      }
+
+      #scribe-app {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+      }
+
+      #scribe-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        height: 44px;
+        padding: 0 16px;
+        border-bottom: 1px solid #e5ddd3;
+        background: #fffdf9;
+        flex-shrink: 0;
+      }
+
+      #scribe-header h1 {
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      #scribe-header #scribe-file-name {
+        font-size: 13px;
+        color: #6b6256;
+      }
+
+      #scribe-header #scribe-save-status {
+        font-size: 12px;
+        color: #8a8175;
+      }
+
+      #scribe-body {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      #scribe-explorer {
+        width: 220px;
+        flex-shrink: 0;
+        border-right: 1px solid #e5ddd3;
+        background: #fffdf9;
+        overflow-y: auto;
+        padding: 12px 0;
+      }
+
+      #scribe-explorer h2 {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #8a8175;
+        padding: 0 12px 8px;
+      }
+
+      #scribe-explorer ul {
+        list-style: none;
+      }
+
+      #scribe-explorer li {
+        padding: 6px 12px;
+        font-size: 13px;
+        cursor: pointer;
+        border-left: 2px solid transparent;
+      }
+
+      #scribe-explorer li[aria-selected='true'] {
+        background: #fdf0e6;
+        border-left-color: #d97757;
+        color: #3d3529;
+      }
+
+      #scribe-explorer li:hover {
+        background: #f7f4ee;
+      }
+
+      #scribe-stage {
+        flex: 1;
+        min-width: 0;
+        position: relative;
+        overflow: hidden;
+        background: #f7f4ee;
+      }
+
+      #scribe-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      #scribe-a11y-root {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      #scribe-settings {
+        width: 260px;
+        flex-shrink: 0;
+        border-left: 1px solid #e5ddd3;
+        background: #fffdf9;
+        overflow-y: auto;
+        padding: 16px;
+      }
+
+      #scribe-settings h2 {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #6b6256;
+        margin-bottom: 12px;
+      }
+
+      #scribe-settings label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+
+      #scribe-settings .hint {
+        font-size: 11px;
+        color: #8a8175;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="scribe-app">
+      <header id="scribe-header" aria-label="Scribe toolbar">
+        <h1>Scribe</h1>
+        <span id="scribe-file-name" aria-live="polite">Untitled.md</span>
+        <span id="scribe-save-status" aria-live="polite">Saved</span>
+      </header>
+      <div id="scribe-body">
+        <nav id="scribe-explorer" aria-label="File explorer">
+          <h2>Explorer</h2>
+          <ul id="scribe-file-list" role="listbox" aria-label="Files">
+            <li role="option" aria-selected="true">Untitled.md</li>
+            <li role="option" aria-selected="false">Welcome.md</li>
+            <li role="option" aria-selected="false">Notes.md</li>
+          </ul>
+        </nav>
+        <div id="scribe-stage" aria-label="Editor stage">
+          <canvas id="scribe-canvas" aria-label="Scribe editor canvas"></canvas>
+          <div id="scribe-a11y-root"></div>
+        </div>
+        <aside id="scribe-settings" aria-label="Settings">
+          <h2>Settings</h2>
+          <label><input type="checkbox" checked /> Live preview</label>
+          <label><input type="checkbox" checked /> Scroll sync</label>
+          <p class="hint">Hybrid shell: outer chrome is plain HTML/CSS; center stage is VectoJS canvas + a11y projection.</p>
+          <p class="hint">Add <code>?debug</code> to attach devtools.</p>
+        </aside>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
