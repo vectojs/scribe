@@ -1,6 +1,7 @@
 import type { Markdown } from '@vectojs/markdown';
 import { marked } from 'marked';
 
+import { t } from '../i18n';
 import { buildTocTree, parseToc, type TocEntry, type TocNode } from '../model/toc';
 
 export type TocScrollHandler = (y: number, entry: TocEntry) => void;
@@ -18,8 +19,8 @@ function getHeadingChildMap(markdownText: string): Map<number, number> {
       case 'space':
         return false;
       case 'html': {
-        const t = (token as unknown as { text: string }).text?.toLowerCase() ?? '';
-        return t.includes('<svg') && t.includes('</svg>');
+        const txt = (token as unknown as { text: string }).text?.toLowerCase() ?? '';
+        return txt.includes('<svg') && txt.includes('</svg>');
       }
       case 'heading':
       case 'paragraph':
@@ -39,8 +40,8 @@ function getHeadingChildMap(markdownText: string): Map<number, number> {
   let childIdx = 0;
   const tokenIdxToChild = new Map<number, number>();
   for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i] as { type: string };
-    if (producesEntity(t as { type: string; text?: string })) {
+    const tok = tokens[i] as { type: string };
+    if (producesEntity(tok as { type: string; text?: string })) {
       tokenIdxToChild.set(i, childIdx);
       childIdx++;
     }
@@ -97,7 +98,7 @@ export function renderToc(
 
   if (entries.length === 0) {
     const empty = document.createElement('p');
-    empty.textContent = 'No headings';
+    empty.textContent = t('toc.empty');
     empty.style.fontSize = '12px';
     empty.style.color = '#8a8175';
     empty.style.padding = '8px 12px';

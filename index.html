@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -249,7 +249,9 @@
       }
 
       #scribe-theme-picker,
-      #scribe-settings-theme-picker {
+      #scribe-settings-theme-picker,
+      #scribe-lang-picker,
+      #scribe-settings-lang-picker {
         height: 28px;
         padding: 0 8px;
         border: var(--hairline) solid var(--scribe-border);
@@ -265,8 +267,14 @@
         margin-left: auto;
       }
 
+      #scribe-lang-picker {
+        margin-left: 8px;
+      }
+
       #scribe-theme-picker:focus-visible,
-      #scribe-settings-theme-picker:focus-visible {
+      #scribe-settings-theme-picker:focus-visible,
+      #scribe-lang-picker:focus-visible,
+      #scribe-settings-lang-picker:focus-visible {
         outline: 2px solid var(--scribe-accent);
         outline-offset: 1px;
       }
@@ -902,7 +910,7 @@
   </head>
   <body>
     <div id="scribe-app">
-      <header id="scribe-header" aria-label="Scribe header">
+      <header id="scribe-header" aria-label="Scribe 顶部栏">
         <div
           style="
             display: flex;
@@ -916,7 +924,7 @@
             id="scribe-menu-toggle"
             class="scribe-icon-btn"
             type="button"
-            aria-label="Toggle file explorer"
+            aria-label="切换文件管理器"
             aria-expanded="false"
             aria-controls="scribe-explorer"
           >
@@ -926,10 +934,10 @@
             id="scribe-toggle-explorer"
             class="scribe-icon-btn scribe-collapse-btn"
             type="button"
-            aria-label="Collapse file explorer"
+            aria-label="收起文件管理器"
             aria-expanded="true"
             aria-controls="scribe-explorer"
-            title="Toggle file explorer (collapse)"
+            title="切换文件管理器（收起）"
           >
             ◀
           </button>
@@ -937,52 +945,52 @@
             id="scribe-toggle-toc"
             class="scribe-icon-btn scribe-collapse-btn"
             type="button"
-            aria-label="Collapse outline"
+            aria-label="收起大纲"
             aria-expanded="true"
             aria-controls="scribe-toc"
-            title="Toggle outline"
+            title="切换大纲"
           >
             ☷
           </button>
           <h1>Scribe</h1>
-          <span id="scribe-file-name" aria-live="polite">Untitled.md</span>
+          <span id="scribe-file-name" aria-live="polite">未命名.md</span>
         </div>
         <div
           style="display: flex; align-items: center; gap: 12px; flex-shrink: 0"
         >
-          <span id="scribe-save-status" aria-live="polite">Saved</span>
+          <span id="scribe-save-status" aria-live="polite">已保存</span>
           <button
             id="scribe-settings-toggle"
             class="scribe-icon-btn"
             type="button"
-            aria-label="Toggle settings"
+            aria-label="切换设置"
             aria-expanded="false"
             aria-controls="scribe-settings"
           >
             ⚙
           </button>
-          <div id="scribe-export-group" aria-label="Export">
+          <div id="scribe-export-group" aria-label="导出">
             <button
               id="scribe-export-md"
               type="button"
-              title="Download Markdown"
-              aria-label="Download Markdown"
+              title="下载 Markdown"
+              aria-label="下载 Markdown"
             >
               MD
             </button>
             <button
               id="scribe-export-html"
               type="button"
-              title="Download HTML"
-              aria-label="Download HTML"
+              title="下载 HTML"
+              aria-label="下载 HTML"
             >
               HTML
             </button>
             <button
               id="scribe-export-pdf"
               type="button"
-              title="Print / Save PDF"
-              aria-label="Print PDF"
+              title="打印 / 保存 PDF"
+              aria-label="打印 PDF"
             >
               PDF
             </button>
@@ -990,13 +998,13 @@
         </div>
       </header>
       <!-- Toolbar: StackEdit/Typora familiar row, HTML buttons with inline SVG (cdn-vectojs/scribe/*) -->
-      <div id="scribe-toolbar" role="toolbar" aria-label="Markdown formatting">
-        <div class="toolbar-group" aria-label="Inline">
+      <div id="scribe-toolbar" role="toolbar" aria-label="Markdown 格式">
+        <div class="toolbar-group" aria-label="行内">
           <button
             type="button"
             data-action="bold"
-            title="Bold (Ctrl+B)"
-            aria-label="Bold"
+            title="加粗 (Ctrl+B)"
+            aria-label="加粗"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path
@@ -1007,8 +1015,8 @@
           <button
             type="button"
             data-action="italic"
-            title="Italic (Ctrl+I)"
-            aria-label="Italic"
+            title="斜体 (Ctrl+I)"
+            aria-label="斜体"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path
@@ -1019,8 +1027,8 @@
           <button
             type="button"
             data-action="code"
-            title="Inline code (Ctrl+E)"
-            aria-label="Inline code"
+            title="行内代码 (Ctrl+E)"
+            aria-label="行内代码"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path
@@ -1029,36 +1037,36 @@
             </svg>
           </button>
         </div>
-        <div class="toolbar-group" aria-label="Blocks">
+        <div class="toolbar-group" aria-label="块">
           <button
             type="button"
             data-action="h1"
-            title="Heading 1 (Ctrl+1)"
-            aria-label="Heading 1"
+            title="标题 1 (Ctrl+1)"
+            aria-label="标题 1"
           >
             H1
           </button>
           <button
             type="button"
             data-action="h2"
-            title="Heading 2 (Ctrl+2)"
-            aria-label="Heading 2"
+            title="标题 2 (Ctrl+2)"
+            aria-label="标题 2"
           >
             H2
           </button>
           <button
             type="button"
             data-action="h3"
-            title="Heading 3 (Ctrl+3)"
-            aria-label="Heading 3"
+            title="标题 3 (Ctrl+3)"
+            aria-label="标题 3"
           >
             H3
           </button>
           <button
             type="button"
             data-action="quote"
-            title="Quote (Ctrl+Q)"
-            aria-label="Quote"
+            title="引用 (Ctrl+Q)"
+            aria-label="引用"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path
@@ -1069,8 +1077,8 @@
           <button
             type="button"
             data-action="codeBlock"
-            title="Code block (Ctrl+Shift+C)"
-            aria-label="Code block"
+            title="代码块 (Ctrl+Shift+C)"
+            aria-label="代码块"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path d="M2 5h12v1H2V5Zm0 4h12v1H2V9Zm0 4h8v1H2v-1Z" />
@@ -1085,12 +1093,12 @@
             </svg>
           </button>
         </div>
-        <div class="toolbar-group" aria-label="Insert">
+        <div class="toolbar-group" aria-label="插入">
           <button
             type="button"
             data-action="link"
-            title="Link (Ctrl+K)"
-            aria-label="Link"
+            title="链接 (Ctrl+K)"
+            aria-label="链接"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path
@@ -1101,8 +1109,8 @@
           <button
             type="button"
             data-action="image"
-            title="Image (Ctrl+Shift+I)"
-            aria-label="Image"
+            title="图片 (Ctrl+Shift+I)"
+            aria-label="图片"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path
@@ -1113,8 +1121,8 @@
           <button
             type="button"
             data-action="table"
-            title="Table (Ctrl+Shift+T)"
-            aria-label="Table"
+            title="表格 (Ctrl+Shift+T)"
+            aria-label="表格"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path
@@ -1125,8 +1133,8 @@
           <button
             type="button"
             data-action="math"
-            title="Math (Ctrl+Shift+M)"
-            aria-label="Math"
+            title="行内公式 (Ctrl+Shift+M)"
+            aria-label="公式"
           >
             <svg viewBox="0 0 16 16" aria-hidden="true">
               <path
@@ -1137,36 +1145,36 @@
           <button
             type="button"
             data-action="mathBlock"
-            title="Math block"
-            aria-label="Math block"
+            title="公式块"
+            aria-label="公式块"
           >
             $$
           </button>
         </div>
-        <div class="toolbar-group" aria-label="View mode">
+        <div class="toolbar-group" aria-label="视图模式">
           <button
             type="button"
             id="scribe-wysiwyg-toggle"
-            title="Toggle WYSIWYG / Source (Typora)"
-            aria-label="Toggle WYSIWYG mode"
+            title="切换到实时 / 所见即所得 (Typora)"
+            aria-label="切换所见即所得模式"
             aria-pressed="false"
           >
-            Live
+            实时
           </button>
           <button
             type="button"
             id="scribe-focus-toggle"
-            title="Toggle focus mode (highlight current paragraph)"
-            aria-label="Toggle focus mode"
+            title="切换专注模式（高亮当前段落）"
+            aria-label="切换专注模式"
             aria-pressed="false"
           >
-            ◎ Focus
+            ◎ 专注
           </button>
         </div>
         <select
           id="scribe-theme-picker"
-          aria-label="Markdown theme"
-          title="Markdown theme"
+          aria-label="Markdown 主题"
+          title="Markdown 主题"
         >
           <option value="githubLight">GitHub Light</option>
           <option value="githubDark">GitHub Dark</option>
@@ -1177,66 +1185,74 @@
         <button
           type="button"
           id="scribe-theme-toggle"
-          title="Toggle theme"
-          aria-label="Toggle theme"
+          title="切换主题"
+          aria-label="切换主题"
         >
           <svg viewBox="0 0 16 16" aria-hidden="true" width="14" height="14">
             <path
               d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2Zm0 1a5 5 0 0 1 4.3 7.5A5 5 0 0 1 8 3Z"
             />
           </svg>
-          Theme
+          主题
         </button>
+        <select
+          id="scribe-lang-picker"
+          aria-label="语言"
+          title="语言"
+        >
+          <option value="zh-CN">简体中文</option>
+          <option value="en">English</option>
+        </select>
       </div>
       <div id="scribe-body">
-        <nav id="scribe-explorer" aria-label="File explorer">
-          <h2>Explorer</h2>
-          <ul id="scribe-file-list" role="listbox" aria-label="Files">
-            <li role="option" aria-selected="true">Kitchen Sink.md</li>
-            <li role="option" aria-selected="false">Welcome.md</li>
-            <li role="option" aria-selected="false">Notes.md</li>
+        <nav id="scribe-explorer" aria-label="文件管理器">
+          <h2>文件</h2>
+          <ul id="scribe-file-list" role="listbox" aria-label="文件列表">
+            <li role="option" aria-selected="true">综合示例.md</li>
+            <li role="option" aria-selected="false">欢迎.md</li>
+            <li role="option" aria-selected="false">笔记.md</li>
           </ul>
         </nav>
-        <nav id="scribe-toc" aria-label="Table of contents">
-          <h2>Outline</h2>
-          <div id="scribe-toc-list" role="tree" aria-label="Headings"></div>
+        <nav id="scribe-toc" aria-label="目录">
+          <h2>大纲</h2>
+          <div id="scribe-toc-list" role="tree" aria-label="标题列表"></div>
         </nav>
-        <div id="scribe-stage" aria-label="Editor stage">
-          <canvas id="scribe-canvas" aria-label="Scribe editor canvas"></canvas>
+        <div id="scribe-stage" aria-label="编辑区">
+          <canvas id="scribe-canvas" aria-label="Scribe 编辑器画布"></canvas>
           <div id="scribe-a11y-root"></div>
           <div id="scribe-focus-highlight" aria-hidden="true" hidden></div>
           <div
             id="scribe-split-handle"
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize editor and preview"
+            aria-label="调整编辑器与预览区大小"
             tabindex="0"
           ></div>
         </div>
-        <aside id="scribe-settings" aria-label="Settings">
+        <aside id="scribe-settings" aria-label="设置">
           <div>
-            <h2>Settings</h2>
+            <h2>设置</h2>
             <label
-              ><input type="checkbox" id="scribe-live-preview" checked /> Live
-              preview</label
+              ><input type="checkbox" id="scribe-live-preview" checked /> 实时
+              预览</label
             >
             <label
-              ><input type="checkbox" id="scribe-scroll-sync" checked /> Scroll
-              sync</label
+              ><input type="checkbox" id="scribe-scroll-sync" checked /> 滚动
+              同步</label
             >
             <label
-              ><input type="checkbox" id="scribe-focus-mode" /> Focus
-              mode</label
+              ><input type="checkbox" id="scribe-focus-mode" /> 专注
+              模式</label
             >
             <div style="margin: 12px 0 8px">
               <label
                 for="scribe-settings-theme-picker"
                 style="font-size: 12px; font-weight: 600; margin-bottom: 6px"
-                >Markdown theme</label
+                >Markdown 主题</label
               >
               <select
                 id="scribe-settings-theme-picker"
-                aria-label="Markdown theme (settings)"
+                aria-label="Markdown 主题（设置）"
                 style="width: 100%"
               >
                 <option value="githubLight">GitHub Light</option>
@@ -1245,26 +1261,40 @@
                 <option value="solarizedLight">Solarized Light</option>
                 <option value="solarizedDark">Solarized Dark</option>
               </select>
-              <p class="hint">Applies to preview, editor and shell chrome.</p>
+              <p class="hint">应用于预览、编辑器和外壳主题。</p>
+            </div>
+            <div style="margin: 12px 0 8px">
+              <label
+                for="scribe-settings-lang-picker"
+                style="font-size: 12px; font-weight: 600; margin-bottom: 6px"
+                >语言</label
+              >
+              <select
+                id="scribe-settings-lang-picker"
+                aria-label="语言（设置）"
+                style="width: 100%"
+              >
+                <option value="zh-CN">简体中文</option>
+                <option value="en">English</option>
+              </select>
+              <p class="hint">界面语言，切换后立即刷新外壳。</p>
             </div>
             <p class="hint">
-              Hybrid shell: outer chrome is plain HTML/CSS; center stage is
-              VectoJS canvas + a11y projection.
+              混合外壳：外层为 HTML/CSS，中心为 VectoJS 画布与无障碍投影。
             </p>
-            <p class="hint">Add <code>?debug</code> to attach devtools.</p>
+            <p class="hint">添加 <code>?debug</code> 以附加开发者工具。</p>
           </div>
           <div>
-            <h2>Export</h2>
+            <h2>导出</h2>
             <p class="hint">
-              Downloads via Blob + FileSaver pattern. HTML via
-              <code>outerHTML</code> wrapper.
+              通过 Blob 与 FileSaver 下载。HTML 使用 <code>outerHTML</code> 包装。
             </p>
           </div>
         </aside>
         <button
           id="scribe-backdrop"
           type="button"
-          aria-label="Close drawers"
+          aria-label="关闭抽屉"
           hidden
         ></button>
       </div>

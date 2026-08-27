@@ -1,3 +1,4 @@
+import { subscribe, t } from '../i18n';
 import type { ScribeDocument, ScribeFileEntry } from '../model/DocumentModel';
 import { saveDocumentWithStorage } from '../model/storage';
 
@@ -28,13 +29,13 @@ export function renderExplorer(
   header.style.fontFamily = 'system-ui, sans-serif';
 
   const title = document.createElement('span');
-  title.textContent = 'Explorer';
+  title.textContent = t('explorer.title');
   header.appendChild(title);
 
   const addBtn = document.createElement('button');
   addBtn.textContent = '+';
-  addBtn.title = 'New file';
-  addBtn.setAttribute('aria-label', 'New file');
+  addBtn.title = t('explorer.newFile.title');
+  addBtn.setAttribute('aria-label', t('explorer.newFile.label'));
   addBtn.style.width = '20px';
   addBtn.style.height = '20px';
   addBtn.style.border = 'var(--hairline) solid var(--scribe-border)';
@@ -45,7 +46,9 @@ export function renderExplorer(
   addBtn.style.lineHeight = '1';
   addBtn.style.color = 'var(--scribe-muted)';
   addBtn.addEventListener('click', () => {
-    const name = `Untitled-${Date.now() % 1000}.md`;
+    const pattern = t('files.untitledPattern');
+    const suffix = String(Date.now() % 1000);
+    const name = pattern.includes('{n}') ? pattern.replace('{n}', suffix) : `Untitled-${suffix}.md`;
     const entry = doc.addFile(name, `# ${name.replace('.md', '')}\n\n`);
     saveDocumentWithStorage(doc, window.localStorage);
     callbacks.onAdd(entry);
@@ -56,7 +59,7 @@ export function renderExplorer(
   const list = document.createElement('ul');
   list.id = 'scribe-file-list';
   list.setAttribute('role', 'listbox');
-  list.setAttribute('aria-label', 'Files');
+  list.setAttribute('aria-label', t('explorer.listLabel'));
   list.style.listStyle = 'none';
   list.style.margin = '0';
   list.style.padding = '0';
@@ -147,8 +150,8 @@ export function renderExplorer(
 
     const renameBtn = document.createElement('button');
     renameBtn.textContent = '✎';
-    renameBtn.title = 'Rename';
-    renameBtn.setAttribute('aria-label', `Rename ${file.name}`);
+    renameBtn.title = t('explorer.rename.title');
+    renameBtn.setAttribute('aria-label', t('explorer.rename.label', { name: file.name }));
     renameBtn.style.width = '20px';
     renameBtn.style.height = '20px';
     renameBtn.style.border = 'none';
@@ -166,8 +169,9 @@ export function renderExplorer(
 
     const deleteBtn = document.createElement('button');
     deleteBtn.textContent = '×';
-    deleteBtn.title = doc.files.length <= 1 ? 'Cannot delete last file' : 'Delete';
-    deleteBtn.setAttribute('aria-label', `Delete ${file.name}`);
+    deleteBtn.title =
+      doc.files.length <= 1 ? t('explorer.delete.disabled') : t('explorer.delete.title');
+    deleteBtn.setAttribute('aria-label', t('explorer.delete.label', { name: file.name }));
     deleteBtn.disabled = doc.files.length <= 1;
     deleteBtn.style.width = '20px';
     deleteBtn.style.height = '20px';
@@ -209,7 +213,7 @@ export function mountExplorer(
   explorerNav: HTMLElement,
   doc: ScribeDocument,
   onUpdate: () => void,
-): void {
+): { rerender: () => void; destroy: () => void } {
   const rerender = (): void => {
     renderExplorer(explorerNav, doc, {
       onSwitch: (id) => {
@@ -239,4 +243,6 @@ export function mountExplorer(
     });
   };
   rerender();
+  const unsubscribe = subscribe(() => rerender());
+  return { rerender, destroy: () => unsubscribe() };
 }
