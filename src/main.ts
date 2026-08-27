@@ -126,6 +126,15 @@ function mountScribe(): void {
   const settingsCloseBtn = document.getElementById(
     'scribe-settings-close',
   ) as HTMLButtonElement | null;
+  const settingsWysiwygCb = document.getElementById(
+    'scribe-settings-wysiwyg',
+  ) as HTMLInputElement | null;
+  const settingsTabButtons = Array.from(
+    document.querySelectorAll('#scribe-settings [role="tab"]'),
+  ) as HTMLButtonElement[];
+  const settingsTabPanes = Array.from(
+    document.querySelectorAll('#scribe-settings [role="tabpanel"]'),
+  ) as HTMLElement[];
 
   // Collapse + theme picker hooks (CTX-0539)
   const toggleExplorerBtn = document.getElementById(
@@ -328,6 +337,7 @@ function mountScribe(): void {
       focusToggleBtn.setAttribute('aria-pressed', String(focusMode));
     }
     if (focusModeCb) focusModeCb.checked = focusMode;
+    if (settingsWysiwygCb) settingsWysiwygCb.checked = isWysiwyg;
     if (stage) {
       stage.classList.toggle('is-wysiwyg', isWysiwyg);
     }
@@ -847,10 +857,80 @@ function mountScribe(): void {
       settingsPanel.setAttribute('aria-label', t('settings.navLabel', locale));
       const titleEl = document.getElementById('scribe-settings-title') as HTMLElement | null;
       if (titleEl) titleEl.textContent = t('settings.title', locale);
-      // body export heading is within .scribe-settings__body
-      const bodyH2s = settingsPanel.querySelectorAll('.scribe-settings__body h2');
-      if (bodyH2s[1]) (bodyH2s[1] as HTMLElement).textContent = t('settings.export.title', locale);
-      // fallback for legacy: also ensure any h2 in dialog gets correct title if titleEl missing
+      const navEl = settingsPanel.querySelector('.scribe-settings__nav') as HTMLElement | null;
+      if (navEl) navEl.setAttribute('aria-label', t('settings.tabs.navLabel', locale));
+      // tab labels
+      const tabAppearance = document.getElementById(
+        'scribe-settings-tab-appearance',
+      ) as HTMLElement | null;
+      if (tabAppearance) {
+        const lbl = tabAppearance.querySelector('.scribe-settings__label');
+        if (lbl) lbl.textContent = t('settings.tabs.appearance', locale);
+        tabAppearance.setAttribute('aria-label', t('settings.tabs.appearance', locale));
+      }
+      const tabEditor = document.getElementById('scribe-settings-tab-editor') as HTMLElement | null;
+      if (tabEditor) {
+        const lbl = tabEditor.querySelector('.scribe-settings__label');
+        if (lbl) lbl.textContent = t('settings.tabs.editor', locale);
+        tabEditor.setAttribute('aria-label', t('settings.tabs.editor', locale));
+      }
+      const tabHotkeys = document.getElementById(
+        'scribe-settings-tab-hotkeys',
+      ) as HTMLElement | null;
+      if (tabHotkeys) {
+        const lbl = tabHotkeys.querySelector('.scribe-settings__label');
+        if (lbl) lbl.textContent = t('settings.tabs.hotkeys', locale);
+        tabHotkeys.setAttribute('aria-label', t('settings.tabs.hotkeys', locale));
+      }
+      const tabAbout = document.getElementById('scribe-settings-tab-about') as HTMLElement | null;
+      if (tabAbout) {
+        const lbl = tabAbout.querySelector('.scribe-settings__label');
+        if (lbl) lbl.textContent = t('settings.tabs.about', locale);
+        tabAbout.setAttribute('aria-label', t('settings.tabs.about', locale));
+      }
+      // pane titles
+      const appearanceTitle = document.getElementById(
+        'scribe-settings-appearance-title',
+      ) as HTMLElement | null;
+      if (appearanceTitle) appearanceTitle.textContent = t('settings.appearance.title', locale);
+      const editorTitle = document.getElementById(
+        'scribe-settings-editor-title',
+      ) as HTMLElement | null;
+      if (editorTitle) editorTitle.textContent = t('settings.editor.title', locale);
+      const hotkeysTitle = document.getElementById(
+        'scribe-settings-hotkeys-title',
+      ) as HTMLElement | null;
+      if (hotkeysTitle) hotkeysTitle.textContent = t('settings.hotkeys.title', locale);
+      const aboutTitle = document.getElementById(
+        'scribe-settings-about-title',
+      ) as HTMLElement | null;
+      if (aboutTitle) aboutTitle.textContent = t('settings.about.title', locale);
+      const hotkeysColAction = document.getElementById(
+        'scribe-settings-hotkeys-col-action',
+      ) as HTMLElement | null;
+      if (hotkeysColAction) hotkeysColAction.textContent = t('settings.hotkeys.col.action', locale);
+      const hotkeysColShortcut = document.getElementById(
+        'scribe-settings-hotkeys-col-shortcut',
+      ) as HTMLElement | null;
+      if (hotkeysColShortcut)
+        hotkeysColShortcut.textContent = t('settings.hotkeys.col.shortcut', locale);
+      const hotkeysHint = document.getElementById(
+        'scribe-settings-hotkeys-hint',
+      ) as HTMLElement | null;
+      if (hotkeysHint) hotkeysHint.textContent = t('settings.hotkeys.hint', locale);
+      const aboutHybridTitle = document.getElementById(
+        'scribe-settings-about-hybrid-title',
+      ) as HTMLElement | null;
+      if (aboutHybridTitle) aboutHybridTitle.textContent = t('settings.about.hybridTitle', locale);
+      const aboutDebugTitle = document.getElementById(
+        'scribe-settings-about-debug-title',
+      ) as HTMLElement | null;
+      if (aboutDebugTitle) aboutDebugTitle.textContent = t('settings.about.debugTitle', locale);
+      const aboutExportTitle = document.getElementById(
+        'scribe-settings-about-export-title',
+      ) as HTMLElement | null;
+      if (aboutExportTitle) aboutExportTitle.textContent = t('settings.about.exportTitle', locale);
+      // fallback for legacy h2 in dialog
       const fallbackH2s = Array.from(settingsPanel.querySelectorAll('h2'));
       if (!titleEl && fallbackH2s[0]) fallbackH2s[0].textContent = t('settings.title', locale);
     }
@@ -861,14 +941,12 @@ function mountScribe(): void {
     const liveLabel = livePreviewCb?.parentElement as HTMLElement | null;
     if (liveLabel) {
       const input = liveLabel.querySelector('input');
-      // preserve checkbox, update text
       if (input) {
         liveLabel.childNodes.forEach((n) => {
           if (n.nodeType === 3 && n.textContent?.trim()) {
             n.textContent = ' ' + t('settings.livePreview', locale);
           }
         });
-        // fallback if no text node
         if (!liveLabel.textContent?.includes(t('settings.livePreview', locale))) {
           liveLabel.appendChild(document.createTextNode(' ' + t('settings.livePreview', locale)));
         }
@@ -890,6 +968,21 @@ function mountScribe(): void {
         }
       });
     }
+    const wysiwygLabelEl = settingsWysiwygCb?.parentElement as HTMLElement | null;
+    if (wysiwygLabelEl) {
+      wysiwygLabelEl.childNodes.forEach((n) => {
+        if (n.nodeType === 3 && n.textContent?.trim()) {
+          n.textContent = ' ' + t('settings.wysiwyg', locale);
+        }
+      });
+      if (!wysiwygLabelEl.textContent?.includes(t('settings.wysiwyg', locale))) {
+        const hasText = Array.from(wysiwygLabelEl.childNodes).some(
+          (n) => n.nodeType === 3 && (n.textContent?.trim()?.length ?? 0) > 0,
+        );
+        if (!hasText)
+          wysiwygLabelEl.appendChild(document.createTextNode(' ' + t('settings.wysiwyg', locale)));
+      }
+    }
     // markdown theme label in settings
     const mdThemeLabel = settingsPanel?.querySelector(
       'label[for="scribe-settings-theme-picker"]',
@@ -899,15 +992,50 @@ function mountScribe(): void {
       'label[for="scribe-settings-lang-picker"]',
     ) as HTMLElement | null;
     if (langLabel) langLabel.textContent = t('settings.language.label', locale);
-    // hints
-    const hints = settingsPanel ? Array.from(settingsPanel.querySelectorAll('.hint')) : [];
-    // hints order: 0 markdown theme hint, 1 lang hint, 2 hybrid, 3 debug, 4 export hint
-    // update by content sniffing but simpler use index
-    if (hints[0]) hints[0].textContent = t('settings.hint.applies', locale);
-    if (hints[1]) hints[1].textContent = t('settings.language.hint', locale);
-    if (hints[2]) hints[2].textContent = t('settings.hint.hybrid', locale);
-    if (hints[3]) hints[3].textContent = t('settings.hint.debug', locale);
-    if (hints[4]) hints[4].textContent = t('settings.export.hint', locale);
+    // hints — id-based for tabbed layout, fallback to index for legacy
+    const themeHint = document.getElementById('scribe-settings-theme-hint') as HTMLElement | null;
+    if (themeHint) themeHint.textContent = t('settings.hint.applies', locale);
+    const langHint = document.getElementById('scribe-settings-lang-hint') as HTMLElement | null;
+    if (langHint) langHint.textContent = t('settings.language.hint', locale);
+    const editorHint = document.getElementById('scribe-settings-editor-hint') as HTMLElement | null;
+    if (editorHint) editorHint.textContent = t('settings.editor.hint', locale);
+    const hybridHint = document.getElementById(
+      'scribe-settings-about-hybrid',
+    ) as HTMLElement | null;
+    if (hybridHint) hybridHint.textContent = t('settings.hint.hybrid', locale);
+    const debugHint = document.getElementById('scribe-settings-about-debug') as HTMLElement | null;
+    if (debugHint) debugHint.textContent = t('settings.hint.debug', locale);
+    const exportHint = document.getElementById(
+      'scribe-settings-about-export',
+    ) as HTMLElement | null;
+    if (exportHint) exportHint.textContent = t('settings.export.hint', locale);
+    // legacy fallback hints index
+    const legacyHints = settingsPanel ? Array.from(settingsPanel.querySelectorAll('.hint')) : [];
+    if (!themeHint && legacyHints[0])
+      legacyHints[0].textContent = t('settings.hint.applies', locale);
+    if (!langHint && legacyHints[1])
+      legacyHints[1].textContent = t('settings.language.hint', locale);
+    // hotkeys action column i18n — map data-hotkey to toolbar labels
+    const hotkeyMap: Record<string, string> = {
+      bold: t('toolbar.bold.label', locale),
+      italic: t('toolbar.italic.label', locale),
+      code: t('toolbar.code.label', locale),
+      h1: t('toolbar.h1.label', locale),
+      h2: t('toolbar.h2.label', locale),
+      h3: t('toolbar.h3.label', locale),
+      quote: t('toolbar.quote.label', locale),
+      codeBlock: t('toolbar.codeBlock.label', locale),
+      link: t('toolbar.link.label', locale),
+      image: t('toolbar.image.label', locale),
+      table: t('toolbar.table.label', locale),
+      math: t('toolbar.math.label', locale),
+      undo: t('context.undo', locale),
+      redo: t('context.redo', locale),
+    };
+    settingsPanel?.querySelectorAll<HTMLTableCellElement>('td[data-hotkey]').forEach((td) => {
+      const key = td.getAttribute('data-hotkey');
+      if (key && hotkeyMap[key]) td.textContent = hotkeyMap[key];
+    });
     // explorer heading is rendered via explorer.ts, but fallback static h2 needs update too (before mount)
     const explorerH2 = explorerNav?.querySelector('h2') as HTMLElement | null;
     if (explorerH2 && !explorerNav?.querySelector('button')) {
@@ -975,6 +1103,89 @@ function mountScribe(): void {
   // initial apply
   syncLangPickers(initialLocale);
   applyStaticI18n(initialLocale);
+
+  // ── Settings tabs (Obsidian-style: Appearance / Editor / Hotkeys / About) ──
+  const SETTINGS_TAB_KEY = 'scribe:settings-tab-v1';
+  type SettingsTab = 'appearance' | 'editor' | 'hotkeys' | 'about';
+  const VALID_TABS: SettingsTab[] = ['appearance', 'editor', 'hotkeys', 'about'];
+  const readSettingsTab = (): SettingsTab => {
+    try {
+      const raw = window.localStorage.getItem(SETTINGS_TAB_KEY) as SettingsTab | null;
+      if (raw && (VALID_TABS as string[]).includes(raw)) return raw;
+    } catch {
+      // ignore
+    }
+    return 'appearance';
+  };
+  const writeSettingsTab = (tab: SettingsTab): void => {
+    try {
+      window.localStorage.setItem(SETTINGS_TAB_KEY, tab);
+    } catch {
+      // ignore
+    }
+  };
+  const activateSettingsTab = (tab: SettingsTab): void => {
+    if (!(VALID_TABS as string[]).includes(tab)) tab = 'appearance';
+    for (const btn of settingsTabButtons) {
+      const isActive = btn.dataset.tab === tab;
+      btn.setAttribute('aria-selected', String(isActive));
+      btn.tabIndex = isActive ? 0 : -1;
+    }
+    for (const pane of settingsTabPanes) {
+      const paneTab = pane.id.replace('scribe-settings-pane-', '');
+      const isActive = paneTab === tab;
+      if (isActive) pane.removeAttribute('hidden');
+      else pane.setAttribute('hidden', '');
+      pane.setAttribute('aria-hidden', String(!isActive));
+    }
+    writeSettingsTab(tab);
+  };
+  let activeSettingsTab: SettingsTab = readSettingsTab();
+  activateSettingsTab(activeSettingsTab);
+  for (const btn of settingsTabButtons) {
+    btn.addEventListener('click', () => {
+      const tab = (btn.dataset.tab as SettingsTab) ?? 'appearance';
+      activeSettingsTab = tab;
+      activateSettingsTab(tab);
+      btn.focus();
+    });
+  }
+  const settingsNavEl = document.querySelector('.scribe-settings__nav') as HTMLElement | null;
+  settingsNavEl?.addEventListener('keydown', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (!target?.matches('[role="tab"]')) return;
+    const tabs = settingsTabButtons;
+    const idx = tabs.indexOf(target as HTMLButtonElement);
+    if (idx === -1) return;
+    let nextIdx: number | null = null;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      nextIdx = (idx + 1) % tabs.length;
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      nextIdx = (idx - 1 + tabs.length) % tabs.length;
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      nextIdx = 0;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      nextIdx = tabs.length - 1;
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const tab = (target as HTMLElement).dataset.tab as SettingsTab;
+      if (tab) {
+        activeSettingsTab = tab;
+        activateSettingsTab(tab);
+      }
+      return;
+    }
+    if (nextIdx !== null) {
+      const nextTab = (tabs[nextIdx].dataset.tab as SettingsTab) ?? 'appearance';
+      activeSettingsTab = nextTab;
+      activateSettingsTab(nextTab);
+      tabs[nextIdx].focus();
+    }
+  });
 
   let livePreview = livePreviewCb?.checked ?? true;
   let scrollSyncEnabled = scrollSyncCb?.checked ?? true;
@@ -1590,6 +1801,10 @@ function mountScribe(): void {
   });
   focusModeCb?.addEventListener('change', () => {
     applyFocusMode(!!focusModeCb.checked);
+  });
+  settingsWysiwygCb?.addEventListener('change', () => {
+    const next: ViewMode = settingsWysiwygCb.checked ? 'wysiwyg' : 'source';
+    applyViewMode(next);
   });
 
   // ── Click-to-edit on preview (WYSIWYG): hit block → caret at source line ─
@@ -2668,6 +2883,12 @@ function mountScribe(): void {
     explorerNav?.classList.remove('is-open');
     tocNav?.classList.remove('is-open');
     if (backdrop) backdrop.hidden = true;
+    // restore last active tab before showing
+    try {
+      activateSettingsTab(activeSettingsTab);
+    } catch {
+      // ignore
+    }
     const dlg = settingsPanel as unknown as HTMLDialogElement;
     if (typeof dlg.showModal === 'function') {
       try {
@@ -2686,8 +2907,12 @@ function mountScribe(): void {
     document.body.style.overflow = 'hidden';
     syncDrawerA11y();
     requestAnimationFrame(() => {
+      // prefer active tab for keyboard nav, else close button
+      const activeTabBtn = settingsTabButtons.find(
+        (b) => b.getAttribute('aria-selected') === 'true',
+      );
       const focusables = getFocusableInSettings();
-      const preferred = settingsCloseBtn ?? focusables[0] ?? settingsPanel;
+      const preferred = activeTabBtn ?? settingsCloseBtn ?? focusables[0] ?? settingsPanel;
       (preferred as unknown as HTMLElement)?.focus?.();
     });
   };
@@ -3300,12 +3525,22 @@ function mountScribe(): void {
     window as unknown as { __scribeHandleFileSwitch: (id: string) => void }
   ).__scribeHandleFileSwitch = handleFileSwitch;
 
-  // Settings modal helpers for e2e (CTX-0543)
+  // Settings modal helpers for e2e (CTX-0543 + tabs)
   (window as unknown as { __scribeSettingsOpen: () => boolean }).__scribeSettingsOpen =
     isSettingsOpen;
   (window as unknown as { __scribeOpenSettings: () => void }).__scribeOpenSettings = openSettings;
   (window as unknown as { __scribeCloseSettings: () => void }).__scribeCloseSettings =
     closeSettings;
+  (window as unknown as { __scribeSettingsTab: () => string }).__scribeSettingsTab = () =>
+    activeSettingsTab;
+  (
+    window as unknown as { __scribeActivateSettingsTab: (tab: string) => void }
+  ).__scribeActivateSettingsTab = (tab: string) => {
+    if ((VALID_TABS as string[]).includes(tab)) {
+      activeSettingsTab = tab as SettingsTab;
+      activateSettingsTab(activeSettingsTab);
+    }
+  };
 
   const maybeAttachDevtools = async (): Promise<void> => {
     if (!new URLSearchParams(window.location.search).has('debug')) return;
