@@ -117,6 +117,18 @@ export const en = {
   'files.notes': 'Notes.md',
   'files.untitled': 'Untitled.md',
   'files.untitledPattern': 'Untitled-{n}.md',
+  // context menu (Obsidian-style)
+  'context.cut': 'Cut',
+  'context.copy': 'Copy',
+  'context.paste': 'Paste',
+  'context.selectAll': 'Select All',
+  'context.undo': 'Undo',
+  'context.redo': 'Redo',
+  'context.openLink': 'Open Link',
+  'context.copyLink': 'Copy Link Address',
+  'context.menu.aria': 'Context menu',
+  'context.copySelection': 'Copy',
+  'context.selectLine': 'Select Line',
 } as const;
 
 export type TranslationKey = keyof typeof en;

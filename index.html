@@ -983,13 +983,121 @@
         }
       }
 
+      /* ── Context Menu (Obsidian-style) ── */
+      #scribe-context-menu {
+        position: fixed;
+        min-width: 200px;
+        max-width: 280px;
+        padding: 6px;
+        background: var(--scribe-pane-bg);
+        border: var(--hairline) solid var(--scribe-border);
+        border-radius: 8px;
+        box-shadow:
+          0 8px 24px rgba(61, 53, 41, 0.12),
+          0 2px 8px rgba(61, 53, 41, 0.08);
+        z-index: 100;
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        user-select: none;
+        -webkit-user-select: none;
+        overflow: hidden;
+      }
+
+      #scribe-context-menu[hidden] {
+        display: none !important;
+      }
+
+      .scribe-context-menu__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      .scribe-context-menu__item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        padding: 6px 10px;
+        border: none;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--scribe-fg);
+        font: inherit;
+        line-height: 1.4;
+        text-align: left;
+        cursor: pointer;
+        transition:
+          background 120ms,
+          color 120ms;
+      }
+
+      .scribe-context-menu__item:hover,
+      .scribe-context-menu__item:focus-visible {
+        background: var(--scribe-bg);
+        outline: none;
+      }
+
+      .scribe-context-menu__item:active {
+        background: var(--scribe-accent-bg);
+      }
+
+      .scribe-context-menu__item[aria-disabled="true"],
+      .scribe-context-menu__item:disabled {
+        opacity: 0.45;
+        cursor: default;
+        pointer-events: none;
+      }
+
+      .scribe-context-menu__item:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: -1px;
+      }
+
+      .scribe-context-menu__label {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .scribe-context-menu__accel {
+        color: var(--scribe-muted-2);
+        font-size: 11px;
+        font-weight: 400;
+        margin-left: 16px;
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+
+      .scribe-context-menu__separator {
+        height: 1px;
+        background: var(--scribe-border);
+        margin: 4px 2px;
+      }
+
+      html[data-theme="dark"] #scribe-context-menu {
+        box-shadow:
+          0 8px 24px rgba(0, 0, 0, 0.3),
+          0 2px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .scribe-context-menu__item {
+          transition: none;
+        }
+      }
+
       @media print {
         #scribe-header,
         #scribe-explorer,
         #scribe-toc,
         #scribe-settings,
         #scribe-toolbar,
-        #scribe-backdrop {
+        #scribe-backdrop,
+        #scribe-context-menu {
           display: none !important;
         }
 
@@ -1386,6 +1494,13 @@
           hidden
         ></button>
       </div>
+      <div
+        id="scribe-context-menu"
+        role="menu"
+        hidden
+        aria-hidden="true"
+        aria-label="上下文菜单"
+      ></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

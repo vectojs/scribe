@@ -118,4 +118,16 @@ export const zhCN: Record<keyof typeof en, string> = {
   'files.notes': '笔记.md',
   'files.untitled': '未命名.md',
   'files.untitledPattern': '未命名-{n}.md',
+  // context menu (Obsidian-style)
+  'context.cut': '剪切',
+  'context.copy': '复制',
+  'context.paste': '粘贴',
+  'context.selectAll': '全选',
+  'context.undo': '撤销',
+  'context.redo': '重做',
+  'context.openLink': '打开链接',
+  'context.copyLink': '复制链接地址',
+  'context.menu.aria': '上下文菜单',
+  'context.copySelection': '复制',
+  'context.selectLine': '选中行',
 };

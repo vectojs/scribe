@@ -43,6 +43,7 @@ import { exportHtml, exportMarkdown, exportPdf } from './view/export';
 import { mountExplorer } from './view/explorer';
 import { getHeadingPositions, renderToc } from './view/toc';
 import { ensurePersisted, getLocale, setLocale, subscribe, t, type Locale } from './i18n';
+import { hideContextMenu, isContextMenuVisible, showContextMenu } from './view/contextMenu';
 
 declare global {
   interface Window {
@@ -953,6 +954,8 @@ function mountScribe(): void {
         ? t('header.expand.outline', locale)
         : t('header.collapse.outline', locale);
     }
+    const contextMenuEl = document.getElementById('scribe-context-menu') as HTMLElement | null;
+    if (contextMenuEl) contextMenuEl.setAttribute('aria-label', t('context.menu.aria', locale));
     syncLangPickers(locale);
   };
 
@@ -2663,6 +2666,408 @@ function mountScribe(): void {
   });
 
   syncDrawerA11y();
+
+  // ── Obsidian-style context menu (CTX-0542) ────────────────────────────
+  // Intercept canvas `contextmenu` to show HTML menu instead of browser default.
+  // Left-drag selection remains untouched: only `contextmenu` (right-click) is prevented.
+  const hasEditorSelection = (): boolean => textArea.selectionStart !== textArea.selectionEnd;
+
+  const syncMirrorFromTextArea = (): void => {
+    const m = getMirrorTextarea();
+    if (m) {
+      m.value = textArea.value;
+      m.selectionStart = textArea.selectionStart;
+      m.selectionEnd = textArea.selectionEnd;
+    }
+  };
+
+  const execEditorCopy = (): boolean => {
+    if (!hasEditorSelection()) return false;
+    const lo = Math.min(textArea.selectionStart, textArea.selectionEnd);
+    const hi = Math.max(textArea.selectionStart, textArea.selectionEnd);
+    const txt = textArea.value.slice(lo, hi);
+    if (!txt) return false;
+    try {
+      if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(txt);
+      else {
+        const ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+    } catch {
+      // ignore
+    }
+    return true;
+  };
+
+  const execEditorCut = (): boolean => {
+    if (!hasEditorSelection()) return false;
+    const s = textArea.selectionStart;
+    const e = textArea.selectionEnd;
+    const lo = Math.min(s, e);
+    const hi = Math.max(s, e);
+    const txt = textArea.value.slice(lo, hi);
+    try {
+      if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(txt);
+    } catch {
+      // ignore
+    }
+    const prevSnap = {
+      value: textArea.value,
+      selectionStart: s,
+      selectionEnd: e,
+    };
+    model.history.push(model.activeId, prevSnap);
+    const nextVal = textArea.value.slice(0, lo) + textArea.value.slice(hi);
+    textArea.value = nextVal;
+    textArea.selectionStart = lo;
+    textArea.selectionEnd = lo;
+    lastRenderedValue = nextVal;
+    const mirror = getMirrorTextarea();
+    if (mirror) {
+      mirror.value = nextVal;
+      mirror.selectionStart = lo;
+      mirror.selectionEnd = lo;
+      mirror.focus();
+    }
+    model.updateContent(model.activeId, nextVal);
+    markdown.setContent(nextVal);
+    previewScroll.updateContentSize();
+    updateChrome();
+    updateToc();
+    persistDocument(model);
+    if (saveStatusEl) saveStatusEl.textContent = t('header.save.edited');
+    scene.markDirty();
+    try {
+      queueInlineWysiwyg();
+    } catch {
+      // ignore
+    }
+    try {
+      queueFocusHighlight();
+    } catch {
+      // ignore
+    }
+    return true;
+  };
+
+  const execEditorPaste = async (): Promise<boolean> => {
+    let txt: string | null = null;
+    try {
+      if (navigator.clipboard?.readText) txt = await navigator.clipboard.readText();
+    } catch {
+      txt = null;
+    }
+    if (txt === null || txt === undefined || txt === '') return false;
+    const s = textArea.selectionStart;
+    const e = textArea.selectionEnd;
+    const lo = Math.min(s, e);
+    const hi = Math.max(s, e);
+    const prevSnap = {
+      value: textArea.value,
+      selectionStart: s,
+      selectionEnd: e,
+    };
+    model.history.push(model.activeId, prevSnap);
+    const nextVal = textArea.value.slice(0, lo) + txt + textArea.value.slice(hi);
+    const cursor = lo + txt.length;
+    textArea.value = nextVal;
+    textArea.selectionStart = cursor;
+    textArea.selectionEnd = cursor;
+    lastRenderedValue = nextVal;
+    const mirror = getMirrorTextarea();
+    if (mirror) {
+      mirror.value = nextVal;
+      mirror.selectionStart = cursor;
+      mirror.selectionEnd = cursor;
+      mirror.focus();
+      try {
+        mirror.setSelectionRange(cursor, cursor);
+      } catch {
+        // ignore
+      }
+    }
+    model.updateContent(model.activeId, nextVal);
+    renderMarkdownImmediate(nextVal);
+    persistDocument(model);
+    scene.markDirty();
+    try {
+      queueInlineWysiwyg();
+    } catch {
+      // ignore
+    }
+    try {
+      queueFocusHighlight();
+    } catch {
+      // ignore
+    }
+    return true;
+  };
+
+  const execSelectAll = (): boolean => {
+    textArea.selectionStart = 0;
+    textArea.selectionEnd = textArea.value.length;
+    syncMirrorFromTextArea();
+    const mirror = getMirrorTextarea();
+    if (mirror) {
+      mirror.focus();
+      try {
+        mirror.setSelectionRange(0, textArea.value.length);
+      } catch {
+        // ignore
+      }
+    }
+    scene.markDirty();
+    try {
+      queueInlineWysiwyg();
+    } catch {
+      // ignore
+    }
+    try {
+      queueFocusHighlight();
+    } catch {
+      // ignore
+    }
+    return true;
+  };
+
+  const getPreviewSelectionText = (): string => {
+    try {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return '';
+      const txt = sel.toString();
+      if (!txt || txt.trim().length === 0) return '';
+      const anchor = sel.anchorNode as Node | null;
+      const focus = sel.focusNode as Node | null;
+      const inside = (n: Node | null): boolean => {
+        if (!n) return false;
+        const el = n instanceof Element ? n : (n.parentElement as Element | null);
+        return !!el?.closest?.('[data-vecto-content]');
+      };
+      if (inside(anchor) || inside(focus)) return txt;
+      return '';
+    } catch {
+      return '';
+    }
+  };
+
+  const copyTextToClipboard = async (txt: string): Promise<void> => {
+    if (!txt) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(txt);
+        return;
+      }
+    } catch {
+      // fallback
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    } catch {
+      // ignore
+    }
+  };
+
+  // Detect editor pane via geometry; previewScroll.x is the left of the centered preview content.
+  const isInEditorPane = (clientX: number): boolean => {
+    if (viewMode === 'wysiwyg') return false;
+    const rect = stage.getBoundingClientRect();
+    const xInStage = clientX - rect.left;
+    try {
+      const pX = (previewScroll as unknown as { x: number }).x;
+      if (typeof pX === 'number' && pX > 24) return xInStage < pX;
+    } catch {
+      // fallback
+    }
+    return xInStage < rect.width * splitRatio;
+  };
+
+  const handleStageContextMenu = (ev: MouseEvent): void => {
+    const target = ev.target as HTMLElement | null;
+    if (target?.closest('#scribe-context-menu')) return;
+    // Only handle clicks that originate inside stage/canvas/a11y projection
+    const insideStage =
+      !!target?.closest?.('#scribe-stage') || target === canvas || target === stage;
+    if (!insideStage) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    hideContextMenu();
+
+    // Link detection first — highest priority: walk parent chain so a text child inside a link still resolves.
+    let linkHref: string | null = null;
+    try {
+      const pt = scene.clientToScene(ev.clientX, ev.clientY);
+      let cur = scene.findEntityAt(pt.x, pt.y) as unknown as {
+        href?: string;
+        url?: string;
+        parent?: unknown;
+      } | null;
+      while (cur) {
+        const candidate = (cur as { href?: string }).href ?? (cur as { url?: string }).url;
+        if (typeof candidate === 'string' && candidate.length > 0) {
+          linkHref = candidate;
+          break;
+        }
+        cur = (cur as { parent?: unknown }).parent as typeof cur | null;
+      }
+    } catch {
+      // ignore hit-test errors
+    }
+
+    if (linkHref) {
+      const href = linkHref;
+      showContextMenu({
+        x: ev.clientX,
+        y: ev.clientY,
+        items: [
+          { id: 'openLink', label: t('context.openLink') },
+          { id: 'copyLink', label: t('context.copyLink') },
+        ],
+        onSelect: (id) => {
+          if (id === 'openLink') handleLinkClick(href);
+          else if (id === 'copyLink') void copyTextToClipboard(href);
+        },
+      });
+      return;
+    }
+
+    // Inside editor pane?
+    const inEditor = isInEditorPane(ev.clientX);
+    // Also treat direct textarea right-click as editor even if geometry says otherwise
+    // (preview's selectable div is also inside the a11y root, so only treat actual <textarea>).
+    const isTextareaTarget =
+      !!target?.closest?.('textarea') &&
+      !!target?.closest?.('[data-vecto-a11y-root], #scribe-a11y-root');
+    const showEditor = inEditor || isTextareaTarget;
+
+    if (showEditor) {
+      const hasSel = hasEditorSelection();
+      showContextMenu({
+        x: ev.clientX,
+        y: ev.clientY,
+        items: [
+          {
+            id: 'cut',
+            label: t('context.cut'),
+            accelerator: 'Ctrl+X',
+            disabled: !hasSel,
+          },
+          {
+            id: 'copy',
+            label: t('context.copy'),
+            accelerator: 'Ctrl+C',
+            disabled: !hasSel,
+          },
+          { id: 'paste', label: t('context.paste'), accelerator: 'Ctrl+V' },
+          { id: 'sep1', label: '', separator: true },
+          {
+            id: 'selectAll',
+            label: t('context.selectAll'),
+            accelerator: 'Ctrl+A',
+          },
+        ],
+        onSelect: (id) => {
+          if (id === 'cut') execEditorCut();
+          else if (id === 'copy') execEditorCopy();
+          else if (id === 'paste') void execEditorPaste();
+          else if (id === 'selectAll') execSelectAll();
+        },
+      });
+      return;
+    }
+
+    // Generic canvas menu (preview blank area or WYSIWYG background)
+    const previewSel = getPreviewSelectionText();
+    const hasPreviewSel = previewSel.length > 0;
+    const hasEditSel = hasEditorSelection();
+    const canUndo = model.history.canUndo(model.activeId);
+    const canRedo = model.history.canRedo(model.activeId);
+    showContextMenu({
+      x: ev.clientX,
+      y: ev.clientY,
+      items: [
+        {
+          id: 'undo',
+          label: t('context.undo'),
+          accelerator: 'Ctrl+Z',
+          disabled: !canUndo,
+        },
+        {
+          id: 'redo',
+          label: t('context.redo'),
+          accelerator: 'Ctrl+Y',
+          disabled: !canRedo,
+        },
+        { id: 'sep1', label: '', separator: true },
+        {
+          id: 'copy',
+          label: t('context.copy'),
+          accelerator: 'Ctrl+C',
+          disabled: !hasPreviewSel && !hasEditSel,
+        },
+        { id: 'paste', label: t('context.paste'), accelerator: 'Ctrl+V' },
+        { id: 'sep2', label: '', separator: true },
+        {
+          id: 'selectAll',
+          label: t('context.selectAll'),
+          accelerator: 'Ctrl+A',
+        },
+      ],
+      onSelect: (id) => {
+        if (id === 'undo') void doUndo();
+        else if (id === 'redo') void doRedo();
+        else if (id === 'copy') {
+          if (hasEditSel) execEditorCopy();
+          else if (hasPreviewSel) void copyTextToClipboard(previewSel);
+        } else if (id === 'paste') void execEditorPaste();
+        else if (id === 'selectAll') execSelectAll();
+      },
+    });
+  };
+
+  // Use capture so we prevent the browser's native menu even when the
+  // a11y textarea overlay is the event target; keep canvas listener too
+  // for environments that don't bubble from canvas.
+  stage.addEventListener('contextmenu', handleStageContextMenu, true);
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  const a11yRoot = document.getElementById('scribe-a11y-root');
+  a11yRoot?.addEventListener('contextmenu', (e) => {
+    // The stage capture already handles positioning; just prevent default here too
+    // to avoid double menu on textarea.
+    const tgt = e.target as HTMLElement | null;
+    if (tgt?.closest?.('#scribe-stage')) e.preventDefault();
+  });
+
+  // Dismiss menu on left-click / Escape / drawer interactions — keep text selection left-drag smooth
+  // (we do not intercept pointerdown for button 0).
+  document.addEventListener('click', (e) => {
+    const tgt = e.target as HTMLElement | null;
+    if (tgt?.closest?.('#scribe-context-menu')) return;
+    if (isContextMenuVisible()) hideContextMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isContextMenuVisible()) hideContextMenu();
+  });
+  // Close when drawer/backdrop opens or settings change
+  backdrop?.addEventListener('click', () => hideContextMenu());
+  // When locale changes, hide stale menu with old labels
+  subscribe(() => hideContextMenu());
+
+  // Quick hide helper for double use in drawer keys
+  const prevCloseDrawers = closeDrawers;
+  void prevCloseDrawers;
 
   // Persistence
   window.addEventListener('beforeunload', () => {
