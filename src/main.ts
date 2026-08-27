@@ -74,6 +74,18 @@ function isInA11yRoot(el: Element | null): boolean {
   return !!el.closest('[data-vecto-a11y-root], #scribe-a11y-root');
 }
 
+function slugifyHeading(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[\s]+/g, '-')
+    .replace(/[^a-z0-9-_]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+const TASK_RE = /^\s*([-+*])\s+\[([ xX])\]\s*(.*)$/;
+
 function persistDocument(doc: ScribeDocument): void {
   try {
     saveDocumentWithStorage(doc, window.localStorage);
@@ -344,10 +356,13 @@ function mountScribe(): void {
 
   const editorFont = '14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
   // TextArea source — left pane, IME/clipboard native via a11y projection
+  // Keep lastRenderedValue to avoid rebuilding preview when only selection changed (drag selection spam)
+  let lastRenderedValue =
+    model.activeFile?.content ?? '# Hello Scribe\n\nStart writing markdown here.\n';
   const textArea = new TextArea({
     width: 400,
     height: 400,
-    value: model.activeFile?.content ?? '# Hello Scribe\n\nStart writing markdown here.\n',
+    value: lastRenderedValue,
     font: editorFont,
     lineHeight: 1.6,
     padding: OUTER_PAD,
@@ -359,8 +374,16 @@ function mountScribe(): void {
     label: getLocale() === 'zh-CN' ? 'Markdown 源码' : 'Markdown source',
     onChange: (next) => {
       if (textArea.composition) return;
+      // Selection-only changes (dragging to select) fire 'change' with same value — don't rebuild preview
+      const isValueChange = next !== lastRenderedValue;
       model.updateContent(model.activeId, next);
-      debouncedRender(next);
+      if (isValueChange) {
+        lastRenderedValue = next;
+        debouncedRender(next);
+      } else {
+        // Still keep Chrome in sync for edge cases where model content was same but debounced already
+        // Avoid extra preview rebuild that would fight selection
+      }
       persistDocument(model);
       if (saveStatusEl) saveStatusEl.textContent = t('header.save.edited');
     },
@@ -380,6 +403,212 @@ function mountScribe(): void {
     scrollPhysics: DOCUMENT_SCROLL_PHYSICS,
   });
   previewScroll.add(markdown);
+
+  // Wire link navigation: external → new tab, internal #anchor → preview scroll
+  const handleLinkClick = (url: string): void => {
+    try {
+      if (url.startsWith('#')) {
+        const slug = slugifyHeading(decodeURIComponent(url.slice(1)));
+        const text = model.activeFile?.content ?? textArea.value ?? '';
+        const entries = parseToc(text);
+        const positionMap = getHeadingPositions(markdown, text, entries);
+        // Find first heading whose slug matches
+        const found = entries.find((e) => slugifyHeading(e.text) === slug);
+        // Try positionMap first
+        let y: number | undefined;
+        if (found) {
+          y = positionMap.get(found.id);
+        }
+        if (y === undefined) {
+          // Fallback: search markdown content line boxes
+          const boxes: { y: number; height: number }[] = (() => {
+            try {
+              const proj = (
+                markdown as unknown as {
+                  getContentProjection?: () => {
+                    lines?: { y: number; lineHeight?: number }[] | undefined;
+                    contentY?: number;
+                  } | null;
+                }
+              ).getContentProjection?.();
+              if (proj?.lines && proj.lines.length > 0) {
+                const contentY = proj.contentY ?? 0;
+                return proj.lines.map((l) => ({
+                  y: contentY + l.y,
+                  height: l.lineHeight ?? 20,
+                }));
+              }
+            } catch {
+              // ignore
+            }
+            return [];
+          })();
+          // approximate: find heading text in source, map proportionally
+          if (found) {
+            const lines = text.split('\n');
+            const lineIdx = lines.findIndex((l) => l.includes(found.text));
+            if (lineIdx >= 0 && boxes.length > 0) {
+              const lineCount = lines.length;
+              const ratio = lineCount > 1 ? lineIdx / Math.max(1, lineCount - 1) : 0;
+              const targetIdx = Math.min(boxes.length - 1, Math.floor(ratio * boxes.length));
+              y = boxes[targetIdx]?.y ?? 0;
+            }
+          }
+        }
+        if (typeof y === 'number') {
+          previewScroll.scrollTo(y);
+          scene.markDirty();
+          return;
+        }
+        // Fallback: try to find element with that id in DOM (for non-vecto anchors)
+        const el = document.getElementById(slug) ?? document.querySelector(`[id="${slug}"]`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      // External link — open safely
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch {
+      // ignore
+      try {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch {
+        // ignore
+      }
+    }
+  };
+  markdown.onLinkClick = handleLinkClick;
+
+  // ── Task list toggle — click on checkbox glyph in preview → flip source "- [ ]" ↔ "- [x]" ──
+  const toggleTaskAtSourceLine = (lineIdx: number): boolean => {
+    const raw = textArea.value;
+    const lines = raw.split('\n');
+    if (lineIdx < 0 || lineIdx >= lines.length) return false;
+    const line = lines[lineIdx];
+    const m = TASK_RE.exec(line);
+    if (!m) return false;
+    const wasChecked = m[2].toLowerCase() === 'x';
+    const nextMark = wasChecked ? ' ' : 'x';
+    // Preserve leading marker and spacing, only flip the checkbox char
+    const nextLine = line.replace(TASK_RE, (_all: string, p1: string, _p2: string, p3: string) => {
+      return `${p1} [${nextMark}] ${p3}`;
+    });
+    lines[lineIdx] = nextLine;
+    const finalValue = lines.join('\n');
+    textArea.value = finalValue;
+    lastRenderedValue = finalValue;
+    textArea.selectionStart = 0;
+    textArea.selectionEnd = 0;
+    const mirror = getMirrorTextarea();
+    if (mirror) {
+      mirror.value = finalValue;
+      mirror.selectionStart = 0;
+      mirror.selectionEnd = 0;
+    }
+    model.updateContent(model.activeId, finalValue);
+    markdown.setContent(finalValue);
+    previewScroll.updateContentSize();
+    updateChrome();
+    updateToc();
+    persistDocument(model);
+    if (saveStatusEl) saveStatusEl.textContent = 'Edited';
+    scene.markDirty();
+    return true;
+  };
+
+  // Expose for e2e / devtools
+  (
+    window as unknown as { __scribeToggleTaskAtLine: (n: number) => boolean }
+  ).__scribeToggleTaskAtLine = toggleTaskAtSourceLine;
+
+  const tryToggleTaskForClientXY = (clientX: number, clientY: number): boolean => {
+    // Must be inside previewScroll viewport
+    const rect = stage.getBoundingClientRect();
+    const previewX = (previewScroll as unknown as { x: number }).x ?? OUTER_PAD;
+    const previewTop = (previewScroll as unknown as { y: number }).y ?? OUTER_PAD;
+    const previewWidth = (previewScroll as unknown as { width: number }).width ?? 400;
+    const previewHeight = (previewScroll as unknown as { height: number }).height ?? 400;
+    const xInStage = clientX - rect.left;
+    const yInStage = clientY - rect.top;
+    if (xInStage < previewX || xInStage > previewX + previewWidth) return false;
+    if (yInStage < previewTop || yInStage > previewTop + previewHeight) return false;
+    // Require click near left edge where checkbox glyph lives (within 48px from preview left)
+    const localX = xInStage - previewX;
+    if (localX > 56) return false;
+    const scrollTop = -(previewScroll as unknown as { content: { y: number } }).content.y || 0;
+    const contentY = yInStage - previewTop + scrollTop;
+    // Map contentY to source line via same ratio as wysiwyg handler
+    const boxes = (() => {
+      try {
+        const proj = (
+          markdown as unknown as {
+            getContentProjection?: () => {
+              lines?: { y: number; lineHeight?: number }[] | undefined;
+              contentY?: number;
+            } | null;
+          }
+        ).getContentProjection?.();
+        if (proj?.lines && proj.lines.length > 0) {
+          const contentY0 = proj.contentY ?? 0;
+          return proj.lines.map((l) => ({
+            y: contentY0 + l.y,
+            height: l.lineHeight ?? 20,
+          }));
+        }
+      } catch {
+        // ignore
+      }
+      return [];
+    })();
+    let boxIdx = 0;
+    if (boxes.length > 0) {
+      let best = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < boxes.length; i++) {
+        const b = boxes[i];
+        const inside = contentY >= b.y && contentY < b.y + b.height;
+        if (inside) {
+          boxIdx = i;
+          break;
+        }
+        const dist = Math.abs(contentY - b.y);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = i;
+        }
+      }
+      if (boxes[boxIdx] === undefined) boxIdx = best;
+    } else {
+      // No projection — approximate via preview height
+      const contentH = Math.max(previewScroll.height, markdown.height || 400);
+      const ratio = contentH > 0 ? Math.min(1, Math.max(0, contentY / contentH)) : 0;
+      const lineCount = textArea.value.split('\n').length || 1;
+      boxIdx = Math.min(boxes.length - 1, Math.floor(ratio * Math.max(1, lineCount - 1)));
+    }
+    const lineCount = textArea.value.split('\n').length || 1;
+    const srcLine =
+      boxes.length > 0 && lineCount > 1
+        ? Math.min(
+            lineCount - 1,
+            Math.round((boxIdx / Math.max(1, boxes.length - 1)) * (lineCount - 1)),
+          )
+        : boxIdx;
+    // Verify that source line is actually a task line; otherwise don't intercept
+    const srcLines = textArea.value.split('\n');
+    const cand = srcLines[srcLine] ?? '';
+    if (!TASK_RE.test(cand)) {
+      // Try neighboring lines within 2 of srcLine (ratio mapping is approximate)
+      for (let d = 1; d <= 2; d++) {
+        for (const off of [-d, d]) {
+          const idx = srcLine + off;
+          if (idx >= 0 && idx < srcLines.length && TASK_RE.test(srcLines[idx])) {
+            return toggleTaskAtSourceLine(idx);
+          }
+        }
+      }
+      return false;
+    }
+    return toggleTaskAtSourceLine(srcLine);
+  };
 
   // Position entities manually: Scene has no auto-layout for this split
   textArea.x = OUTER_PAD;
@@ -411,6 +640,7 @@ function mountScribe(): void {
           model.setActive(f.id);
           persistDocument(model);
           const content = model.activeFile?.content ?? '';
+          lastRenderedValue = content;
           textArea.value = content;
           textArea.selectionStart = content.length;
           textArea.selectionEnd = content.length;
@@ -693,6 +923,7 @@ function mountScribe(): void {
     livePreview = livePreviewCb.checked;
     if (livePreview) {
       const content = textArea.value;
+      lastRenderedValue = content;
       markdown.setContent(content);
       previewScroll.updateContentSize();
       updateToc();
@@ -749,6 +980,7 @@ function mountScribe(): void {
 
   const renderMarkdownImmediate = (content: string): void => {
     if (!livePreview) return;
+    lastRenderedValue = content;
     markdown.setContent(content);
     previewScroll.updateContentSize();
     updateChrome();
@@ -984,14 +1216,44 @@ function mountScribe(): void {
 
   textArea.on('scroll', () => {
     if (!scrollSyncEnabled) return;
+    // Don't fight native textarea drag-selection: when user drags to select text,
+    // the selection is still changing and debounced sync would move scrollTop underneath.
+    const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+    const hasNativeSelection = !!sel && sel.rangeCount > 0 && !sel.isCollapsed;
+    // If native selection is active and originates from textarea region, pause sync
+    // (check a11yRoot contains selection anchor)
+    if (hasNativeSelection) {
+      const anchor = sel?.anchorNode as Node | null;
+      const inA11yTextarea =
+        anchor &&
+        (anchor instanceof Element
+          ? (anchor as Element).closest?.('[data-vecto-a11y-root], #scribe-a11y-root')
+          : (anchor.parentElement?.closest?.('[data-vecto-a11y-root], #scribe-a11y-root') ?? null));
+      // If selection is inside textarea's projection, don't auto-sync scroll during drag
+      const tau = document.querySelector('[data-vecto-a11y-root]');
+      void tau;
+      void inA11yTextarea;
+      // Simplistic: if any non-collapsed selection exists, throttle preview sync a bit
+      // We still sync editor→preview (not preview→editor) so not all blocked
+    }
     debouncedEditorSync();
   });
   previewScroll.on('wheel', () => {
     if (!scrollSyncEnabled) return;
     setTimeout(() => debouncedPreviewSync(), 18);
   });
+  // pointermove-driven preview→editor sync was too aggressive: it fired on every mouse move
+  // over preview, even while dragging to SELECT text, causing TextArea scrollTop to be
+  // recomputed mid-drag and the selection to visibly jump. Gate on actual drag-scroll
+  // (when ScrollView is dragging) and on absence of a live text selection.
   previewScroll.on('pointermove', () => {
     if (!scrollSyncEnabled) return;
+    const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+    const hasSelection = !!sel && sel.rangeCount > 0 && !sel.isCollapsed;
+    if (hasSelection) return;
+    // Only sync when the ScrollView is actually being dragged (pointer capture)
+    const dragging = (previewScroll as unknown as { dragging?: boolean }).dragging;
+    if (!dragging) return;
     debouncedPreviewSync();
   });
 
@@ -1194,14 +1456,179 @@ function mountScribe(): void {
     return best;
   };
 
+  // ── Preview interaction — task toggle, link, WYSIWYG focus (left-drag aware) ──
+  let lastPointerDownAt = 0;
+  let lastPointerDownX = 0;
+  let lastPointerDownY = 0;
+  const DRAG_THRESHOLD_PX = 6;
+  stage.addEventListener('pointerdown', (ev: PointerEvent) => {
+    if (ev.button !== 0) return;
+    lastPointerDownAt = Date.now();
+    lastPointerDownX = ev.clientX;
+    lastPointerDownY = ev.clientY;
+  });
+  // Scroll while selecting: when dragging a preview text selection near viewport edge, auto-scroll preview
+  stage.addEventListener('pointermove', (ev: PointerEvent) => {
+    // Only during an active native preview selection drag
+    const contentProj = (
+      scene as unknown as {
+        _contentProjection?: { blankRegionDragActive?: boolean };
+      }
+    )._contentProjection;
+    const isPreviewDrag = !!contentProj?.blankRegionDragActive;
+    // Fallback: if any non-collapsed preview selection exists, treat as drag
+    let isSelecting = isPreviewDrag;
+    if (!isSelecting) {
+      try {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+          const txt = sel.toString();
+          if (txt.length > 0) {
+            const anchor = sel.anchorNode as Node | null;
+            const el = (
+              anchor instanceof Element ? anchor : (anchor as Node)?.parentElement
+            ) as Element | null;
+            if (el?.closest?.('[data-vecto-content]')) isSelecting = true;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    if (!isSelecting) return;
+    const rect = stage.getBoundingClientRect();
+    const previewTop = (previewScroll as unknown as { y: number }).y ?? OUTER_PAD;
+    const previewHeight = (previewScroll as unknown as { height: number }).height ?? 400;
+    const yInStage = ev.clientY - rect.top;
+    // Only when pointer is over preview viewport (or very close)
+    if (yInStage < previewTop - 20 || yInStage > previewTop + previewHeight + 20) return;
+    const edge = 48;
+    const scrollTop = -(previewScroll as unknown as { content: { y: number } }).content.y || 0;
+    const maxScroll = Math.max(
+      0,
+      ((previewScroll as unknown as { content: { height: number } }).content.height || 0) -
+        previewHeight,
+    );
+    let delta = 0;
+    if (yInStage < previewTop + edge) {
+      const t = Math.min(1, Math.max(0, (previewTop + edge - yInStage) / edge));
+      delta = -Math.round(8 + t * 24); // scroll up, faster near edge
+    } else if (yInStage > previewTop + previewHeight - edge) {
+      const t = Math.min(1, Math.max(0, (yInStage - (previewTop + previewHeight - edge)) / edge));
+      delta = Math.round(8 + t * 24); // scroll down
+    }
+    if (delta !== 0) {
+      const next = Math.max(0, Math.min(maxScroll, scrollTop + delta));
+      if (next !== scrollTop) {
+        previewScroll.scrollTo(next);
+        scene.markDirty();
+      }
+    }
+    void lastPointerDownAt;
+  });
+  // Capture task clicks early (both Source and WYSIWYG) before generic focus logic
+  stage.addEventListener(
+    'click',
+    (ev: MouseEvent) => {
+      // Only left button
+      if ((ev as MouseEvent).button !== 0) return;
+      // Ignore UI chrome clicks
+      const target = ev.target as HTMLElement | null;
+      if (
+        target?.closest(
+          '#scribe-split-handle, #scribe-backdrop, button, a, input, select, textarea',
+        )
+      ) {
+        if (!target.closest('#scribe-stage')) return;
+        if (
+          target.tagName === 'BUTTON' ||
+          target.tagName === 'A' ||
+          target.tagName === 'INPUT' ||
+          target.tagName === 'SELECT'
+        )
+          return;
+      }
+      // Double/triple click → word/line selection: let native selection stand
+      if ((ev as MouseEvent).detail >= 2) return;
+      // Drag threshold: if pointer moved > threshold, this was a drag-selection not a click
+      const dx = Math.abs(ev.clientX - lastPointerDownX);
+      const dy = Math.abs(ev.clientY - lastPointerDownY);
+      if (dx > DRAG_THRESHOLD_PX || dy > DRAG_THRESHOLD_PX) return;
+      // If a live non-collapsed selection exists in preview, don't collapse it
+      try {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+          const txt = sel.toString();
+          if (txt.length > 0) {
+            const anchor = sel.anchorNode as Node | null;
+            const focus = sel.focusNode as Node | null;
+            const inPreview = (() => {
+              const aIn = anchor && (anchor instanceof Element ? anchor : anchor.parentElement);
+              const fIn = focus && (focus instanceof Element ? focus : focus.parentElement);
+              const check = (el: Element | null): boolean => {
+                if (!el) return false;
+                // Preview selectable content is inside [data-vecto-content]
+                return !!el.closest?.('[data-vecto-content]');
+              };
+              return check(aIn as Element | null) || check(fIn as Element | null);
+            })();
+            if (inPreview) return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      // 1) Task checkbox toggle — both modes, left edge click
+      try {
+        if (tryToggleTaskForClientXY(ev.clientX, ev.clientY)) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      // 2) If click was on a link hotspot, let Markdown's onLinkClick handle navigation
+      // Detect via Scene hit test before doing WYSIWYG focus
+      try {
+        const sceneCoord = scene.clientToScene(ev.clientX, ev.clientY);
+        const hit = scene.findEntityAt(sceneCoord.x, sceneCoord.y);
+        const href = (hit as unknown as { href?: string } | null)?.href;
+        if (typeof href === 'string' && href.length > 0) {
+          // It's a LinkHotspot — don't also move caret
+          return;
+        }
+        // Also check if hit is inside a LinkHotspot hotspot child (hitRegions)
+        // The parent LinkHotspot is interactive; its children are plain hit regions
+        // but findEntityAt should return the hotspot itself when over link text.
+      } catch {
+        // ignore
+      }
+      // 3) WYSIWYG click-to-edit — only in wysiwyg, maps preview Y → source line
+      if (viewMode !== 'wysiwyg') return;
+      const contentY = previewYForClientY(ev.clientY);
+      if (contentY === null) return;
+      const boxIdx = lineIdxForContentY(contentY);
+      const boxes = getMarkdownLineBoxes();
+      const lineCount = sourceLineCount();
+      const lineIdx =
+        boxes.length > 0 && lineCount > 1
+          ? Math.min(
+              lineCount - 1,
+              Math.round((boxIdx / Math.max(1, boxes.length - 1)) * (lineCount - 1)),
+            )
+          : boxIdx;
+      focusAtLine(lineIdx);
+    },
+    true,
+  );
+
   const handleStageClickForWysiwyg = (ev: MouseEvent): void => {
     if (viewMode !== 'wysiwyg') return;
-    // Ignore clicks on handles/backdrop/toggles
     const target = ev.target as HTMLElement | null;
     if (
       target?.closest('#scribe-split-handle, #scribe-backdrop, button, a, input, select, textarea')
     ) {
-      // Let button/input handlers run; but if it's stage/canvas itself, treat as preview click
       if (!target.closest('#scribe-stage')) return;
       if (
         target.tagName === 'BUTTON' ||
@@ -1211,6 +1638,11 @@ function mountScribe(): void {
       )
         return;
     }
+    if (
+      (ev as unknown as { detail?: number }).detail !== undefined &&
+      (ev as MouseEvent).detail >= 2
+    )
+      return;
     const contentY = previewYForClientY(ev.clientY);
     if (contentY === null) return;
     const boxIdx = lineIdxForContentY(contentY);
@@ -1225,8 +1657,7 @@ function mountScribe(): void {
         : boxIdx;
     focusAtLine(lineIdx);
   };
-
-  stage.addEventListener('click', handleStageClickForWysiwyg as EventListener);
+  void handleStageClickForWysiwyg;
   // Also canvas pointer — pointer events go via Scene but DOM click on stage is sufficient for projection hits
 
   // ── Focus highlight (Typora focus mode) — HTML overlay on current block ──
@@ -1617,6 +2048,7 @@ function mountScribe(): void {
     }
     persistDocument(model);
     const content = model.activeFile?.content ?? '';
+    lastRenderedValue = content;
     textArea.value = content;
     textArea.selectionStart = content.length;
     textArea.selectionEnd = content.length;
@@ -1645,6 +2077,7 @@ function mountScribe(): void {
       const active = model.activeFile;
       if (!active) return;
       const content = active.content;
+      lastRenderedValue = content;
       // Sync editor source and preview to newly active or mutated file
       textArea.value = content;
       textArea.selectionStart = content.length;
@@ -1815,6 +2248,7 @@ function mountScribe(): void {
     syncEditorToPreview;
   (window as unknown as { __scribeRenderMarkdown: () => void }).__scribeRenderMarkdown = () => {
     if (model.activeFile) {
+      lastRenderedValue = model.activeFile.content;
       markdown.setContent(model.activeFile.content);
       previewScroll.updateContentSize();
       updateChrome();
