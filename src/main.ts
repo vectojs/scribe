@@ -28,11 +28,17 @@ import {
 } from './editor/ThemeManager';
 import { ScribeDocument } from './model/DocumentModel';
 import { isValidStageSize, markdownMaxWidth } from './utils/dpr';
-import { loadDocumentWithStorage, saveDocumentWithStorage } from './model/storage';
+import {
+  LEGACY_KEY,
+  STORAGE_KEY,
+  loadDocumentWithStorage,
+  saveDocumentWithStorage,
+} from './model/storage';
 import { parseToc } from './model/toc';
 import { exportHtml, exportMarkdown, exportPdf } from './view/export';
 import { mountExplorer } from './view/explorer';
 import { getHeadingPositions, renderToc } from './view/toc';
+import { ensurePersisted, getLocale, setLocale, subscribe, t, type Locale } from './i18n';
 
 declare global {
   interface Window {
@@ -110,6 +116,12 @@ function mountScribe(): void {
   const settingsThemePicker = document.getElementById(
     'scribe-settings-theme-picker',
   ) as HTMLSelectElement | null;
+  const langPicker = document.getElementById('scribe-lang-picker') as HTMLSelectElement | null;
+  const settingsLangPicker = document.getElementById(
+    'scribe-settings-lang-picker',
+  ) as HTMLSelectElement | null;
+  const headerEl = document.getElementById('scribe-header') as HTMLElement | null;
+  const toolbarGroupEls = toolbarEl ? Array.from(toolbarEl.querySelectorAll('.toolbar-group')) : [];
   // WYSIWYG (Typora) — CTX-0540
   const wysiwygToggleBtn = document.getElementById(
     'scribe-wysiwyg-toggle',
@@ -120,6 +132,12 @@ function mountScribe(): void {
 
   if (!canvas || !stage) throw new Error('Scribe requires #scribe-canvas and #scribe-stage');
 
+  // ── i18n: default zh-CN, persisted, html lang synced ─────────────────────
+  ensurePersisted();
+  const initialLocale = getLocale();
+  // ensure html lang matches (ensurePersisted already does, but keep explicit)
+  document.documentElement.lang = initialLocale === 'zh-CN' ? 'zh-CN' : 'en';
+
   let currentPreset: MarkdownPreset = resolveInitialPreset();
   let themeMode: ThemeMode = getModeForPreset(currentPreset);
   const applyHtmlTheme = (mode: ThemeMode): void => {
@@ -128,6 +146,37 @@ function mountScribe(): void {
   applyHtmlTheme(themeMode);
 
   const model = createDocument();
+  // Localize default file names for fresh installs when locale is zh-CN
+  try {
+    const hasPrimary = !!window.localStorage.getItem(STORAGE_KEY);
+    const hasLegacy = !!window.localStorage.getItem(LEGACY_KEY);
+    const isFresh = !hasPrimary && !hasLegacy;
+    if (isFresh && getLocale() === 'zh-CN') {
+      const mapping: Record<string, string> = {
+        'Kitchen Sink.md': t('files.kitchenSink'),
+        'Welcome.md': t('files.welcome'),
+        'Notes.md': t('files.notes'),
+      };
+      for (const f of model.files) {
+        const translated = mapping[f.name];
+        if (translated && translated !== f.name) {
+          try {
+            model.renameFile(f.id, translated);
+          } catch {
+            // ignore
+          }
+        }
+      }
+      // persist renamed defaults immediately
+      try {
+        saveDocumentWithStorage(model, window.localStorage);
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
 
   // ── Collapsible explorer / TOC (CTX-0539) ────────────────────────────────
   const EXPLORER_COLLAPSED_KEY = 'scribe:explorer-collapsed-v1';
@@ -156,8 +205,11 @@ function mountScribe(): void {
       toggleExplorerBtn.textContent = collapsed ? '▶' : '◀';
       toggleExplorerBtn.setAttribute(
         'aria-label',
-        collapsed ? 'Expand file explorer' : 'Collapse file explorer',
+        collapsed ? t('header.expand.explorer') : t('header.collapse.explorer'),
       );
+      toggleExplorerBtn.title = collapsed
+        ? t('header.expand.explorer')
+        : t('header.collapse.explorer');
     }
   };
   const applyTocCollapsed = (collapsed: boolean): void => {
@@ -166,7 +218,11 @@ function mountScribe(): void {
     if (toggleTocBtn) {
       toggleTocBtn.setAttribute('aria-expanded', String(!collapsed));
       toggleTocBtn.textContent = collapsed ? '▶' : '☷';
-      toggleTocBtn.setAttribute('aria-label', collapsed ? 'Expand outline' : 'Collapse outline');
+      toggleTocBtn.setAttribute(
+        'aria-label',
+        collapsed ? t('header.expand.outline') : t('header.collapse.outline'),
+      );
+      toggleTocBtn.title = collapsed ? t('header.expand.outline') : t('header.collapse.outline');
     }
   };
 
@@ -233,10 +289,18 @@ function mountScribe(): void {
     const isWysiwyg = mode === 'wysiwyg';
     if (wysiwygToggleBtn) {
       wysiwygToggleBtn.setAttribute('aria-pressed', String(isWysiwyg));
-      wysiwygToggleBtn.textContent = isWysiwyg ? 'Source' : 'Live';
+      wysiwygToggleBtn.textContent = isWysiwyg
+        ? t('toolbar.wysiwyg.source')
+        : t('toolbar.wysiwyg.live');
       wysiwygToggleBtn.title = isWysiwyg
-        ? 'Switch to Source (split)'
-        : 'Switch to Live / WYSIWYG (Typora)';
+        ? t('toolbar.wysiwyg.titleSource')
+        : t('toolbar.wysiwyg.titleLive');
+      wysiwygToggleBtn.setAttribute('aria-label', t('toolbar.wysiwyg.label'));
+    }
+    if (focusToggleBtn) {
+      focusToggleBtn.textContent = t('toolbar.focus.text');
+      focusToggleBtn.title = t('toolbar.focus.title');
+      focusToggleBtn.setAttribute('aria-label', t('toolbar.focus.label'));
     }
     if (focusToggleBtn) {
       focusToggleBtn.setAttribute('aria-pressed', String(focusMode));
@@ -290,14 +354,15 @@ function mountScribe(): void {
     bg: TOKENS_BY_MODE[themeMode].paneBg,
     color: TOKENS_BY_MODE[themeMode].shellFg,
     border: TOKENS_BY_MODE[themeMode].border,
-    placeholder: 'Start writing markdown here…',
-    label: 'Markdown source',
+    placeholder:
+      getLocale() === 'zh-CN' ? '在此开始书写 Markdown…' : 'Start writing markdown here…',
+    label: getLocale() === 'zh-CN' ? 'Markdown 源码' : 'Markdown source',
     onChange: (next) => {
       if (textArea.composition) return;
       model.updateContent(model.activeId, next);
       debouncedRender(next);
       persistDocument(model);
-      if (saveStatusEl) saveStatusEl.textContent = 'Edited';
+      if (saveStatusEl) saveStatusEl.textContent = t('header.save.edited');
     },
   });
 
@@ -332,8 +397,8 @@ function mountScribe(): void {
   // Chrome updates (file name + save status). Explorer is handled via mountExplorer separately.
   const updateChrome = (): void => {
     const active = model.activeFile;
-    if (fileNameEl) fileNameEl.textContent = active?.name ?? 'Untitled.md';
-    if (saveStatusEl) saveStatusEl.textContent = 'Saved';
+    if (fileNameEl) fileNameEl.textContent = active?.name ?? t('header.fileName.untitled');
+    if (saveStatusEl) saveStatusEl.textContent = t('header.save.saved');
     // Fallback for legacy file list if explorerNav not present
     if (!explorerNav && fileListEl) {
       fileListEl.innerHTML = '';
@@ -391,9 +456,235 @@ function mountScribe(): void {
     );
     if (tocNav && tocListEl) {
       const header = tocNav.querySelector('h2');
-      if (header) header.textContent = `Outline (${entries.length})`;
+      if (header) header.textContent = t('toc.titleWithCount', { count: entries.length });
+    } else if (tocNav) {
+      const header = tocNav.querySelector('h2');
+      if (header)
+        header.textContent =
+          entries.length > 0 ? t('toc.titleWithCount', { count: entries.length }) : t('toc.title');
     }
   };
+
+  // ── i18n chrome sync ────────────────────────────────────────────────
+  const syncLangPickers = (locale: Locale): void => {
+    if (langPicker) langPicker.value = locale;
+    if (settingsLangPicker) settingsLangPicker.value = locale;
+  };
+
+  const applyStaticI18n = (locale: Locale): void => {
+    // header
+    if (headerEl) headerEl.setAttribute('aria-label', t('header.aria', locale));
+    const menuToggleEl = document.getElementById('scribe-menu-toggle') as HTMLElement | null;
+    if (menuToggleEl)
+      menuToggleEl.setAttribute('aria-label', t('header.menu.toggleExplorer', locale));
+    if (settingsToggle)
+      settingsToggle.setAttribute('aria-label', t('header.menu.toggleSettings', locale));
+    const exportGroup = document.getElementById('scribe-export-group') as HTMLElement | null;
+    if (exportGroup) exportGroup.setAttribute('aria-label', t('header.export.group', locale));
+    if (exportMdBtn) {
+      exportMdBtn.title = t('header.export.md.title', locale);
+      exportMdBtn.setAttribute('aria-label', t('header.export.md.title', locale));
+    }
+    if (exportHtmlBtn) {
+      exportHtmlBtn.title = t('header.export.html.title', locale);
+      exportHtmlBtn.setAttribute('aria-label', t('header.export.html.title', locale));
+    }
+    if (exportPdfBtn) {
+      exportPdfBtn.title = t('header.export.pdf.title', locale);
+      exportPdfBtn.setAttribute('aria-label', t('header.export.pdf.title', locale));
+    }
+    if (backdrop) backdrop.setAttribute('aria-label', t('header.backdrop.close', locale));
+    // toolbar
+    if (toolbarEl) toolbarEl.setAttribute('aria-label', t('toolbar.label', locale));
+    toolbarGroupEls.forEach((el, idx) => {
+      const keys: Array<string> = [
+        'toolbar.group.inline',
+        'toolbar.group.blocks',
+        'toolbar.group.insert',
+        'toolbar.group.viewMode',
+      ];
+      const k = keys[idx] as any;
+      if (k) el.setAttribute('aria-label', t(k, locale));
+    });
+    const toolbarMap: Record<string, string> = {
+      bold: 'toolbar.bold',
+      italic: 'toolbar.italic',
+      code: 'toolbar.code',
+      h1: 'toolbar.h1',
+      h2: 'toolbar.h2',
+      h3: 'toolbar.h3',
+      quote: 'toolbar.quote',
+      codeBlock: 'toolbar.codeBlock',
+      link: 'toolbar.link',
+      image: 'toolbar.image',
+      table: 'toolbar.table',
+      math: 'toolbar.math',
+      mathBlock: 'toolbar.mathBlock',
+    };
+    for (const [action, base] of Object.entries(toolbarMap)) {
+      const btn = toolbarEl?.querySelector(
+        `button[data-action="${action}"]`,
+      ) as HTMLButtonElement | null;
+      if (btn) {
+        btn.title = t(`${base}.title` as any, locale);
+        btn.setAttribute('aria-label', t(`${base}.label` as any, locale));
+      }
+    }
+    // theme pickers
+    if (themePicker) {
+      themePicker.setAttribute('aria-label', t('toolbar.theme.picker.label', locale));
+      themePicker.title = t('toolbar.theme.picker.title', locale);
+    }
+    if (settingsThemePicker) {
+      settingsThemePicker.setAttribute('aria-label', t('settings.markdownTheme.label', locale));
+    }
+    if (themeToggle) {
+      themeToggle.title = t('toolbar.theme.toggle.title', locale);
+      themeToggle.setAttribute('aria-label', t('toolbar.theme.toggle.label', locale));
+      // keep icon, update text node
+      const textNode = Array.from(themeToggle.childNodes).find((n) => n.nodeType === 3);
+      if (textNode) textNode.textContent = t('toolbar.theme.toggle.text', locale);
+      else themeToggle.textContent = t('toolbar.theme.toggle.text', locale);
+    }
+    // lang pickers
+    if (langPicker) {
+      langPicker.setAttribute('aria-label', t('lang.label', locale));
+      langPicker.title = t('lang.switcher', locale);
+    }
+    if (settingsLangPicker) {
+      settingsLangPicker.setAttribute('aria-label', t('settings.language.label', locale));
+    }
+    // explorer / toc nav labels
+    if (explorerNav) explorerNav.setAttribute('aria-label', t('explorer.navLabel', locale));
+    if (tocNav) tocNav.setAttribute('aria-label', t('toc.navLabel', locale));
+    const tocList = document.getElementById('scribe-toc-list') as HTMLElement | null;
+    if (tocList) tocList.setAttribute('aria-label', t('toc.listLabel', locale));
+    const stageEl = document.getElementById('scribe-stage') as HTMLElement | null;
+    if (stageEl) stageEl.setAttribute('aria-label', t('stage.label', locale));
+    const canvasEl = document.getElementById('scribe-canvas') as HTMLElement | null;
+    if (canvasEl) canvasEl.setAttribute('aria-label', t('stage.canvasLabel', locale));
+    const handleEl = document.getElementById('scribe-split-handle') as HTMLElement | null;
+    if (handleEl) handleEl.setAttribute('aria-label', t('stage.splitHandle.label', locale));
+    if (settingsPanel) settingsPanel.setAttribute('aria-label', t('settings.navLabel', locale));
+    // settings headings and labels
+    const settingsH2s = settingsPanel ? Array.from(settingsPanel.querySelectorAll('h2')) : [];
+    if (settingsH2s[0]) settingsH2s[0].textContent = t('settings.title', locale);
+    if (settingsH2s[1]) settingsH2s[1].textContent = t('settings.export.title', locale);
+    const liveLabel = livePreviewCb?.parentElement as HTMLElement | null;
+    if (liveLabel) {
+      const input = liveLabel.querySelector('input');
+      // preserve checkbox, update text
+      if (input) {
+        liveLabel.childNodes.forEach((n) => {
+          if (n.nodeType === 3 && n.textContent?.trim()) {
+            n.textContent = ' ' + t('settings.livePreview', locale);
+          }
+        });
+        // fallback if no text node
+        if (!liveLabel.textContent?.includes(t('settings.livePreview', locale))) {
+          liveLabel.appendChild(document.createTextNode(' ' + t('settings.livePreview', locale)));
+        }
+      }
+    }
+    const scrollLabel = scrollSyncCb?.parentElement as HTMLElement | null;
+    if (scrollLabel) {
+      scrollLabel.childNodes.forEach((n) => {
+        if (n.nodeType === 3 && n.textContent?.trim()) {
+          n.textContent = ' ' + t('settings.scrollSync', locale);
+        }
+      });
+    }
+    const focusLabelEl = focusModeCb?.parentElement as HTMLElement | null;
+    if (focusLabelEl) {
+      focusLabelEl.childNodes.forEach((n) => {
+        if (n.nodeType === 3 && n.textContent?.trim()) {
+          n.textContent = ' ' + t('settings.focusMode', locale);
+        }
+      });
+    }
+    // markdown theme label in settings
+    const mdThemeLabel = settingsPanel?.querySelector(
+      'label[for="scribe-settings-theme-picker"]',
+    ) as HTMLElement | null;
+    if (mdThemeLabel) mdThemeLabel.textContent = t('settings.markdownTheme', locale);
+    const langLabel = settingsPanel?.querySelector(
+      'label[for="scribe-settings-lang-picker"]',
+    ) as HTMLElement | null;
+    if (langLabel) langLabel.textContent = t('settings.language.label', locale);
+    // hints
+    const hints = settingsPanel ? Array.from(settingsPanel.querySelectorAll('.hint')) : [];
+    // hints order: 0 markdown theme hint, 1 lang hint, 2 hybrid, 3 debug, 4 export hint
+    // update by content sniffing but simpler use index
+    if (hints[0]) hints[0].textContent = t('settings.hint.applies', locale);
+    if (hints[1]) hints[1].textContent = t('settings.language.hint', locale);
+    if (hints[2]) hints[2].textContent = t('settings.hint.hybrid', locale);
+    if (hints[3]) hints[3].textContent = t('settings.hint.debug', locale);
+    if (hints[4]) hints[4].textContent = t('settings.export.hint', locale);
+    // explorer heading is rendered via explorer.ts, but fallback static h2 needs update too (before mount)
+    const explorerH2 = explorerNav?.querySelector('h2') as HTMLElement | null;
+    if (explorerH2 && !explorerNav?.querySelector('button')) {
+      // only static fallback; dynamic explorer will handle itself
+      explorerH2.textContent = t('explorer.title', locale);
+    }
+    // toc heading
+    const tocH2 = tocNav?.querySelector('h2') as HTMLElement | null;
+    if (tocH2) {
+      // will be overwritten by updateToc, but set fallback
+      if (
+        tocH2.textContent === 'Outline' ||
+        tocH2.textContent === '大纲' ||
+        tocH2.textContent?.startsWith('Outline') ||
+        tocH2.textContent?.startsWith('大纲')
+      ) {
+        // keep count logic in updateToc, just set base
+        if (!tocH2.textContent?.includes('(')) tocH2.textContent = t('toc.title', locale);
+      }
+    }
+    // save status
+    if (saveStatusEl) {
+      const cur = saveStatusEl.textContent?.trim();
+      if (
+        cur === 'Saved' ||
+        cur === '已保存' ||
+        cur === t('header.save.saved', 'en') ||
+        cur === t('header.save.saved', 'zh-CN')
+      ) {
+        saveStatusEl.textContent = t('header.save.saved', locale);
+      } else if (cur === 'Edited' || cur === '已编辑') {
+        saveStatusEl.textContent = t('header.save.edited', locale);
+      }
+    }
+    // wysiwyg/focus toggles already handled in updateWysiwygChrome, but ensure sync
+    updateWysiwygChrome(viewMode as any);
+    // collapsed buttons aria
+    const explorerCollapsedNow = explorerNav?.classList.contains('is-collapsed') ?? false;
+    if (toggleExplorerBtn) {
+      toggleExplorerBtn.setAttribute(
+        'aria-label',
+        explorerCollapsedNow
+          ? t('header.expand.explorer', locale)
+          : t('header.collapse.explorer', locale),
+      );
+      toggleExplorerBtn.title = explorerCollapsedNow
+        ? t('header.expand.explorer', locale)
+        : t('header.collapse.explorer', locale);
+    }
+    const tocCollapsedNow = tocNav?.classList.contains('is-collapsed') ?? false;
+    if (toggleTocBtn) {
+      toggleTocBtn.setAttribute(
+        'aria-label',
+        tocCollapsedNow ? t('header.expand.outline', locale) : t('header.collapse.outline', locale),
+      );
+      toggleTocBtn.title = tocCollapsedNow
+        ? t('header.expand.outline', locale)
+        : t('header.collapse.outline', locale);
+    }
+    syncLangPickers(locale);
+  };
+
+  // initial apply
+  syncLangPickers(initialLocale);
+  applyStaticI18n(initialLocale);
 
   let livePreview = livePreviewCb?.checked ?? true;
   let scrollSyncEnabled = scrollSyncCb?.checked ?? true;
@@ -412,6 +703,50 @@ function mountScribe(): void {
     scrollSyncEnabled = scrollSyncCb.checked;
   });
 
+  // Language pickers
+  langPicker?.addEventListener('change', (e) => {
+    const v = (e.target as HTMLSelectElement).value as Locale;
+    if (v === 'en' || v === 'zh-CN') {
+      setLocale(v);
+    }
+  });
+  settingsLangPicker?.addEventListener('change', (e) => {
+    const v = (e.target as HTMLSelectElement).value as Locale;
+    if (v === 'en' || v === 'zh-CN') {
+      setLocale(v);
+    }
+  });
+  subscribe((locale) => {
+    document.documentElement.lang = locale === 'zh-CN' ? 'zh-CN' : 'en';
+    applyStaticI18n(locale);
+    // re-render explorer and toc with new language
+    try {
+      // explorer re-render via mountExplorer's internal rerender: trigger by dispatching custom event
+      // simplest: find explorer nav and force updateChrome + explorer rerender if possible
+      // Since mountExplorer returns void, we manually trigger a re-render by calling updateChrome and updateToc
+      // and for explorer we dispatch a locale event that explorer could listen to, but easier: re-call mount logic
+      // We stored no handle, so just update header title manually and rely on next interaction
+      // Instead we re-render explorer by temporarily triggering a fake update
+      if (explorerNav) {
+        // Force re-render by calling render via a synthetic storage event
+        // We'll just re-apply explorer file list language by updating title span directly
+        const expTitle = explorerNav.querySelector('div > span') as HTMLElement | null;
+        if (expTitle) expTitle.textContent = t('explorer.title', locale);
+        const addBtn = explorerNav.querySelector('button[aria-label]') as HTMLElement | null;
+        if (addBtn) {
+          addBtn.title = t('explorer.newFile.title', locale);
+          addBtn.setAttribute('aria-label', t('explorer.newFile.label', locale));
+        }
+      }
+    } catch {
+      // ignore
+    }
+    updateChrome();
+    updateToc();
+    // Re-render preview/scene to ensure any language-dependent overlays repaint
+    scene.markDirty();
+  });
+
   const renderMarkdownImmediate = (content: string): void => {
     if (!livePreview) return;
     markdown.setContent(content);
@@ -424,7 +759,7 @@ function mountScribe(): void {
 
   const debouncedRender = debounce((content: unknown) => {
     renderMarkdownImmediate(String(content));
-    if (saveStatusEl) saveStatusEl.textContent = 'Saved';
+    if (saveStatusEl) saveStatusEl.textContent = t('header.save.saved');
     persistDocument(model);
   }, 80) as (c: string) => void;
 
@@ -1109,7 +1444,7 @@ function mountScribe(): void {
     model.updateContent(model.activeId, next.value);
     renderMarkdownImmediate(next.value);
     persistDocument(model);
-    if (saveStatusEl) saveStatusEl.textContent = 'Edited';
+    if (saveStatusEl) saveStatusEl.textContent = t('header.save.edited');
     scene.markDirty();
     setTimeout(() => {
       const m = getMirrorTextarea() as HTMLTextAreaElement | null;
