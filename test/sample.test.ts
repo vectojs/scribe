@@ -15,6 +15,7 @@ describe('sample kitchen sink', () => {
     expect(SAMPLE_MARKDOWN).toContain('`const x = 42`');
     expect(SAMPLE_MARKDOWN).toContain('```js');
     expect(SAMPLE_MARKDOWN).toContain('```python');
+    expect(SAMPLE_MARKDOWN).toContain('```bash');
     expect(SAMPLE_MARKDOWN).toContain('> Simple blockquote');
     expect(SAMPLE_MARKDOWN).toContain('- Apple');
     expect(SAMPLE_MARKDOWN).toContain('1. First item');
@@ -27,13 +28,78 @@ describe('sample kitchen sink', () => {
     expect(SAMPLE_MARKDOWN).toContain('$$');
     expect(SAMPLE_MARKDOWN).toContain('\\int_0^1');
     expect(SAMPLE_MARKDOWN).toContain('[^1]');
+    expect(SAMPLE_MARKDOWN).toContain('[^中文]');
     expect(SAMPLE_MARKDOWN).toContain('~~Strikethrough~~');
     expect(SAMPLE_MARKDOWN).toContain('++Inserted++');
     expect(SAMPLE_MARKDOWN).toContain('==Marked==');
     expect(SAMPLE_MARKDOWN).toContain('19^th^');
+    expect(SAMPLE_MARKDOWN).toContain('H~2~O');
     expect(SAMPLE_MARKDOWN).toContain(':smile:');
     expect(SAMPLE_MARKDOWN).toContain('::: info');
+    expect(SAMPLE_MARKDOWN).toContain('::: warning');
+    expect(SAMPLE_MARKDOWN).toContain('::: tip');
     expect(SAMPLE_MARKDOWN).toContain('*[HTML]:');
+    // showcase extensions — Chinese, math, big code
+    expect(SAMPLE_MARKDOWN).toContain('你好');
+    expect(SAMPLE_MARKDOWN).toContain('中文');
+    expect(SAMPLE_MARKDOWN).toContain('标题一');
+    expect(SAMPLE_MARKDOWN).toContain('勾股定理');
+    expect(SAMPLE_MARKDOWN).toContain('$$E = mc^2$$');
+    expect(SAMPLE_MARKDOWN).toContain('$$E=mc^2$$');
+    expect(SAMPLE_MARKDOWN).toContain('\\int_{-\\infty}');
+    expect(SAMPLE_MARKDOWN).toContain('big-code.js');
+    expect(SAMPLE_MARKDOWN).toContain('Scribe big code loaded');
+  });
+
+  test('showcase is thorough and modern (Typora/StackEdit/Obsidian)', () => {
+    // headings h1-h6 both English and Chinese
+    expect(SAMPLE_MARKDOWN).toContain('# Heading 1');
+    expect(SAMPLE_MARKDOWN).toContain('###### Heading 6');
+    expect(SAMPLE_MARKDOWN).toContain('# 标题一');
+    expect(SAMPLE_MARKDOWN).toContain('###### 标题六');
+    // inline decorations
+    expect(SAMPLE_MARKDOWN).toContain('**加粗**');
+    expect(SAMPLE_MARKDOWN).toContain('_斜体_');
+    expect(SAMPLE_MARKDOWN).toContain('~~删除线~~');
+    expect(SAMPLE_MARKDOWN).toContain('==高亮==');
+    // code
+    expect(SAMPLE_MARKDOWN).toContain('```js');
+    expect(SAMPLE_MARKDOWN).toContain('```python');
+    expect(SAMPLE_MARKDOWN).toContain('```bash');
+    expect(SAMPLE_MARKDOWN).toContain('```ts');
+    // blockquote with Chinese
+    expect(SAMPLE_MARKDOWN).toContain('> 中文引用');
+    // lists ultr/ordered/task with Chinese
+    expect(SAMPLE_MARKDOWN).toContain('- 中文无序');
+    expect(SAMPLE_MARKDOWN).toContain('1. 中文有序');
+    expect(SAMPLE_MARKDOWN).toContain('- [x] 中文已完成');
+    // table aligned
+    expect(SAMPLE_MARKDOWN).toContain('| 中文');
+    // hr
+    expect(SAMPLE_MARKDOWN).toContain('\n---\n');
+    // links/images
+    expect(SAMPLE_MARKDOWN).toContain('[VectoJS 中文站]');
+    expect(SAMPLE_MARKDOWN).toContain('![图标]');
+    // footnotes
+    expect(SAMPLE_MARKDOWN).toContain('[^中文]');
+    // emoji
+    expect(SAMPLE_MARKDOWN).toContain(':tada:');
+    // admonitions
+    expect(SAMPLE_MARKDOWN).toContain('::: danger');
+    expect(SAMPLE_MARKDOWN).toContain('::: note');
+    // math inline both $ and $$ inside paragraphs
+    expect(SAMPLE_MARKDOWN).toContain('$a^2 + b^2 = c^2$');
+    expect(SAMPLE_MARKDOWN).toContain('$$E = mc^2$$');
+    expect(SAMPLE_MARKDOWN).toContain('$$V = \\frac{4}{3}');
+    // display math
+    expect(SAMPLE_MARKDOWN).toContain('$$\n\\int_0^1');
+    expect(SAMPLE_MARKDOWN).toContain('\\begin{aligned}');
+    // display big code
+    expect(SAMPLE_MARKDOWN).toContain('// big-code.js');
+    expect(SAMPLE_MARKDOWN).toContain('中文注释');
+    // length sanity — showcase should be > 500 lines
+    const lines = SAMPLE_MARKDOWN.split('\n').length;
+    expect(lines).toBeGreaterThan(500);
   });
 
   test('renders via Markdown without throwing', () => {

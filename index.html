@@ -595,15 +595,6 @@
         margin-top: 8px;
       }
 
-      #scribe-sync {
-        border-top: 1px solid var(--scribe-border);
-        padding-top: 12px;
-      }
-
-      #scribe-sync button:hover {
-        background: var(--scribe-accent-bg);
-      }
-
       /* ── Responsive: 900px overlay (explorer / toc / settings become drawers) ── */
       @media (max-width: 900px) {
         .scribe-icon-btn {
@@ -894,7 +885,6 @@
       }
 
       @media print {
-
         #scribe-header,
         #scribe-explorer,
         #scribe-toc,
@@ -1174,7 +1164,7 @@
           </button>
         </div>
         <select
-          id="scribe-theme-picker" 
+          id="scribe-theme-picker"
           aria-label="Markdown theme"
           title="Markdown theme"
         >
@@ -1216,7 +1206,7 @@
           <div id="scribe-a11y-root"></div>
           <div id="scribe-focus-highlight" aria-hidden="true" hidden></div>
           <div
-            id="scribe-split-handle" 
+            id="scribe-split-handle"
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize editor and preview"
@@ -1270,7 +1260,6 @@
               <code>outerHTML</code> wrapper.
             </p>
           </div>
-          <div id="scribe-sync" aria-label="Cloud sync"></div>
         </aside>
         <button
           id="scribe-backdrop"
