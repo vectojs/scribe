@@ -6,7 +6,8 @@ describe('ScribeDocument', () => {
   test('defaults to three files and first active', () => {
     const doc = new ScribeDocument();
     expect(doc.files).toHaveLength(3);
-    expect(doc.activeFile?.name).toBe('Untitled.md');
+    expect(doc.activeFile?.name).toBe('Kitchen Sink.md');
+    expect(doc.activeFile?.content).toContain('# Scribe — Markdown Kitchen Sink');
   });
 
   test('setActive switches file', () => {

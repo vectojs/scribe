@@ -16,10 +16,13 @@ import {
   type ToolbarAction,
 } from './editor/ToolbarActions';
 import {
-  persistTheme,
-  resolveInitialTheme,
+  ALL_PRESETS,
+  getModeForPreset,
+  persistPreset,
+  resolveInitialPreset,
   TOKENS_BY_MODE,
   toggleMode,
+  type MarkdownPreset,
   type ThemeMode,
   PRESET_FOR_MODE,
 } from './editor/ThemeManager';
@@ -101,9 +104,27 @@ function mountScribe(): void {
   const backdrop = document.getElementById('scribe-backdrop') as HTMLElement | null;
   const settingsPanel = document.getElementById('scribe-settings') as HTMLElement | null;
 
+  // Collapse + theme picker hooks (CTX-0539)
+  const toggleExplorerBtn = document.getElementById(
+    'scribe-toggle-explorer',
+  ) as HTMLButtonElement | null;
+  const toggleTocBtn = document.getElementById('scribe-toggle-toc') as HTMLButtonElement | null;
+  const themePicker = document.getElementById('scribe-theme-picker') as HTMLSelectElement | null;
+  const settingsThemePicker = document.getElementById(
+    'scribe-settings-theme-picker',
+  ) as HTMLSelectElement | null;
+  // WYSIWYG (Typora) — CTX-0540
+  const wysiwygToggleBtn = document.getElementById(
+    'scribe-wysiwyg-toggle',
+  ) as HTMLButtonElement | null;
+  const focusToggleBtn = document.getElementById('scribe-focus-toggle') as HTMLButtonElement | null;
+  const focusModeCb = document.getElementById('scribe-focus-mode') as HTMLInputElement | null;
+  const focusHighlightEl = document.getElementById('scribe-focus-highlight') as HTMLElement | null;
+
   if (!canvas || !stage) throw new Error('Scribe requires #scribe-canvas and #scribe-stage');
 
-  let themeMode: ThemeMode = resolveInitialTheme();
+  let currentPreset: MarkdownPreset = resolveInitialPreset();
+  let themeMode: ThemeMode = getModeForPreset(currentPreset);
   const applyHtmlTheme = (mode: ThemeMode): void => {
     document.documentElement.setAttribute('data-theme', mode);
   };
@@ -111,6 +132,132 @@ function mountScribe(): void {
 
   const model = createDocument();
   const cloudSync = new CloudSyncStub(window.localStorage);
+
+  // ── Collapsible explorer / TOC (CTX-0539) ────────────────────────────────
+  const EXPLORER_COLLAPSED_KEY = 'scribe:explorer-collapsed-v1';
+  const TOC_COLLAPSED_KEY = 'scribe:toc-collapsed-v1';
+
+  const readCollapsed = (key: string): boolean => {
+    try {
+      return window.localStorage.getItem(key) === 'true';
+    } catch {
+      return false;
+    }
+  };
+  const writeCollapsed = (key: string, value: boolean): void => {
+    try {
+      window.localStorage.setItem(key, String(value));
+    } catch {
+      // ignore
+    }
+  };
+
+  const applyExplorerCollapsed = (collapsed: boolean): void => {
+    if (!explorerNav) return;
+    explorerNav.classList.toggle('is-collapsed', collapsed);
+    if (toggleExplorerBtn) {
+      toggleExplorerBtn.setAttribute('aria-expanded', String(!collapsed));
+      toggleExplorerBtn.textContent = collapsed ? '▶' : '◀';
+      toggleExplorerBtn.setAttribute(
+        'aria-label',
+        collapsed ? 'Expand file explorer' : 'Collapse file explorer',
+      );
+    }
+  };
+  const applyTocCollapsed = (collapsed: boolean): void => {
+    if (!tocNav) return;
+    tocNav.classList.toggle('is-collapsed', collapsed);
+    if (toggleTocBtn) {
+      toggleTocBtn.setAttribute('aria-expanded', String(!collapsed));
+      toggleTocBtn.textContent = collapsed ? '▶' : '☷';
+      toggleTocBtn.setAttribute('aria-label', collapsed ? 'Expand outline' : 'Collapse outline');
+    }
+  };
+
+  const explorerCollapsed = readCollapsed(EXPLORER_COLLAPSED_KEY);
+  const tocCollapsed = readCollapsed(TOC_COLLAPSED_KEY);
+  applyExplorerCollapsed(explorerCollapsed);
+  applyTocCollapsed(tocCollapsed);
+
+  // Collapse toggles — persist + re-apply. ResizeObserver on stage will reflow canvas when flex gives stage more width.
+  toggleExplorerBtn?.addEventListener('click', () => {
+    const now = !(explorerNav?.classList.contains('is-collapsed') ?? false);
+    applyExplorerCollapsed(now);
+    writeCollapsed(EXPLORER_COLLAPSED_KEY, now);
+    // Nudge layout even if ResizeObserver hasn't fired yet (desktop flex transition)
+    window.dispatchEvent(new Event('resize'));
+  });
+  toggleTocBtn?.addEventListener('click', () => {
+    const now = !(tocNav?.classList.contains('is-collapsed') ?? false);
+    applyTocCollapsed(now);
+    writeCollapsed(TOC_COLLAPSED_KEY, now);
+    window.dispatchEvent(new Event('resize'));
+  });
+
+  // ── WYSIWYG view mode + Focus mode (CTX-0540, Typora-inspired) ──────────
+  type ViewMode = 'source' | 'wysiwyg';
+  const VIEW_MODE_KEY = 'scribe:view-mode-v1';
+  const FOCUS_MODE_KEY = 'scribe:focus-mode-v1';
+
+  const readViewMode = (): ViewMode => {
+    try {
+      const raw = window.localStorage.getItem(VIEW_MODE_KEY);
+      if (raw === 'wysiwyg' || raw === 'source') return raw;
+    } catch {
+      // ignore
+    }
+    return 'source';
+  };
+  const writeViewMode = (mode: ViewMode): void => {
+    try {
+      window.localStorage.setItem(VIEW_MODE_KEY, mode);
+    } catch {
+      // ignore
+    }
+  };
+  const readFocusMode = (): boolean => {
+    try {
+      return window.localStorage.getItem(FOCUS_MODE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  };
+  const writeFocusMode = (enabled: boolean): void => {
+    try {
+      window.localStorage.setItem(FOCUS_MODE_KEY, String(enabled));
+    } catch {
+      // ignore
+    }
+  };
+
+  let viewMode: ViewMode = readViewMode();
+  let focusMode = readFocusMode();
+
+  const updateWysiwygChrome = (mode: ViewMode): void => {
+    const isWysiwyg = mode === 'wysiwyg';
+    if (wysiwygToggleBtn) {
+      wysiwygToggleBtn.setAttribute('aria-pressed', String(isWysiwyg));
+      wysiwygToggleBtn.textContent = isWysiwyg ? 'Source' : 'Live';
+      wysiwygToggleBtn.title = isWysiwyg
+        ? 'Switch to Source (split)'
+        : 'Switch to Live / WYSIWYG (Typora)';
+    }
+    if (focusToggleBtn) {
+      focusToggleBtn.setAttribute('aria-pressed', String(focusMode));
+    }
+    if (focusModeCb) focusModeCb.checked = focusMode;
+    if (stage) {
+      stage.classList.toggle('is-wysiwyg', isWysiwyg);
+    }
+    if (focusHighlightEl) {
+      if (!focusMode || !isWysiwyg) {
+        focusHighlightEl.hidden = true;
+        focusHighlightEl.classList.remove('is-visible');
+      } else {
+        focusHighlightEl.hidden = false;
+      }
+    }
+  };
 
   const scene = new Scene(canvas, {
     disableWindowResize: true,
@@ -162,7 +309,7 @@ function mountScribe(): void {
   const initialPreviewWidth = Math.max(320, 600);
   const markdown = new Markdown(textArea.value, {
     maxWidth: initialPreviewWidth,
-    theme: PRESET_FOR_MODE[themeMode] as keyof typeof PRESET_THEMES,
+    theme: currentPreset as keyof typeof PRESET_THEMES,
     selectable: true,
   });
 
@@ -182,6 +329,9 @@ function mountScribe(): void {
   scene.add(textArea);
   scene.add(previewScroll);
   scene.start();
+
+  // Apply initial WYSIWYG chrome so stage class and toggle reflect stored mode before first layout
+  updateWysiwygChrome(viewMode);
 
   // Chrome updates (file name + save status). Explorer is handled via mountExplorer separately.
   const updateChrome = (): void => {
@@ -522,14 +672,31 @@ function mountScribe(): void {
     const h = stage.clientHeight;
     if (!isValidStageSize(w, h)) return;
     scene.resize(w, h);
-    // Keep markdownMaxWidth helper in sync for stage-level checks (320 floor)
     void markdownMaxWidth(w);
 
     const availW = Math.max(320, w);
     const availH = Math.max(200, h);
+    const paneH = availH - 2 * OUTER_PAD;
+
+    if (viewMode === 'wysiwyg') {
+      // Typora single surface: hide TextArea offscreen, preview fills stage
+      textArea.width = 1;
+      textArea.height = 1;
+      textArea.x = -10000;
+      textArea.y = -10000;
+      previewScroll.width = Math.max(200, availW - 2 * OUTER_PAD);
+      previewScroll.height = paneH;
+      previewScroll.x = OUTER_PAD;
+      previewScroll.y = OUTER_PAD;
+      markdown.setMaxWidth(Math.max(200, previewScroll.width - 32));
+      if (handle) handle.style.display = 'none';
+      previewScroll.updateContentSize();
+      scene.markDirty();
+      return;
+    }
+
     const editorW = Math.round((availW - GAP - HANDLE_W) * splitRatio);
     const previewW = Math.max(200, availW - editorW - GAP - HANDLE_W);
-    const paneH = availH - 2 * OUTER_PAD;
 
     textArea.width = Math.max(200, editorW - OUTER_PAD);
     textArea.height = paneH;
@@ -556,6 +723,277 @@ function mountScribe(): void {
   const observer = new ResizeObserver(layout);
   observer.observe(stage);
   layout();
+  // Re-apply WYSIWYG chrome now that layout has measured — ensures handle visibility + preview width are correct
+  updateWysiwygChrome(viewMode);
+
+  // ── WYSIWYG toggle wiring (Typora single surface) ─────────────────────
+  const applyViewMode = (next: ViewMode): void => {
+    viewMode = next;
+    writeViewMode(next);
+    updateWysiwygChrome(next);
+    layout();
+    // In WYSIWYG, preview is the editing surface — focus hidden source for typing
+    if (next === 'wysiwyg') {
+      const mirror = getMirrorTextarea();
+      if (mirror) mirror.focus();
+    }
+    scene.markDirty();
+  };
+
+  wysiwygToggleBtn?.addEventListener('click', () => {
+    applyViewMode(viewMode === 'wysiwyg' ? 'source' : 'wysiwyg');
+  });
+
+  const applyFocusMode = (enabled: boolean): void => {
+    focusMode = enabled;
+    writeFocusMode(enabled);
+    updateWysiwygChrome(viewMode);
+    if (focusToggleBtn) focusToggleBtn.setAttribute('aria-pressed', String(enabled));
+    if (focusModeCb) focusModeCb.checked = enabled;
+    // refresh highlight immediately
+    queueFocusHighlight();
+    scene.markDirty();
+  };
+
+  focusToggleBtn?.addEventListener('click', () => {
+    applyFocusMode(!focusMode);
+  });
+  focusModeCb?.addEventListener('change', () => {
+    applyFocusMode(!!focusModeCb.checked);
+  });
+
+  // ── Click-to-edit on preview (WYSIWYG): hit block → caret at source line ─
+  const sourceLineCount = (): number => {
+    try {
+      return (
+        (textArea as unknown as { lineOfOffset: (n: number) => number }).lineOfOffset(
+          textArea.value.length,
+        ) + 1
+      );
+    } catch {
+      return textArea.value.split('\n').length || 1;
+    }
+  };
+
+  const offsetForLine = (lineIdx: number): number => {
+    const lines = textArea.value.split('\n');
+    const clamped = Math.max(0, Math.min(lines.length - 1, lineIdx));
+    let off = 0;
+    for (let i = 0; i < clamped; i++) off += lines[i].length + 1;
+    return Math.min(textArea.value.length, off);
+  };
+
+  const caretLine = (): number => {
+    try {
+      return (textArea as unknown as { lineOfOffset: (n: number) => number }).lineOfOffset(
+        textArea.selectionStart,
+      );
+    } catch {
+      return 0;
+    }
+  };
+
+  const focusAtLine = (lineIdx: number): void => {
+    const off = offsetForLine(lineIdx);
+    textArea.selectionStart = off;
+    textArea.selectionEnd = off;
+    const mirror = getMirrorTextarea();
+    if (mirror) {
+      mirror.value = textArea.value;
+      mirror.selectionStart = off;
+      mirror.selectionEnd = off;
+      mirror.focus();
+      // Ensure IME caret visits new line
+      try {
+        mirror.setSelectionRange(off, off);
+      } catch {
+        // ignore
+      }
+    } else {
+      (textArea as unknown as { focused: boolean }).focused = true;
+      scene.markDirty();
+    }
+    queueFocusHighlight();
+    if (viewMode === 'wysiwyg') {
+      // Keep caret line roughly centered via preview scroll (Typora seam)
+      const boxes = getMarkdownLineBoxes();
+      const lineCount = sourceLineCount();
+      if (boxes.length > 0 && lineCount > 1) {
+        const ratio = Math.min(1, Math.max(0, lineIdx / Math.max(1, lineCount - 1)));
+        const targetIdx = Math.min(boxes.length - 1, Math.floor(ratio * boxes.length));
+        const box = boxes[targetIdx];
+        if (box) {
+          // Center with 1/3 viewport offset for typewriter feel
+          const target = Math.max(0, box.y - previewScroll.height * 0.33);
+          previewScroll.scrollTo(target);
+          scene.markDirty();
+        }
+      }
+    }
+  };
+
+  const previewYForClientY = (clientY: number): number | null => {
+    const rect = stage.getBoundingClientRect();
+    const yInStage = clientY - rect.top;
+    // Must be inside previewScroll's stage bounds when in WYSIWYG (full) or source (right pane)
+    const previewTop = (previewScroll as unknown as { y: number }).y ?? OUTER_PAD;
+    const previewHeight = (previewScroll as unknown as { height: number }).height ?? 0;
+    if (yInStage < previewTop || yInStage > previewTop + previewHeight) return null;
+    const scrollTop = getPreviewMetrics().scrollTop;
+    // contentLocalY = yInStage - previewTop + scrollTop (box.y == scrollTop for that line)
+    return yInStage - previewTop + scrollTop;
+  };
+
+  const lineIdxForContentY = (contentY: number): number => {
+    const boxes = getMarkdownLineBoxes();
+    if (boxes.length === 0) return 0;
+    // Find nearest box whose y <= contentY < y+height, otherwise closest by distance
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < boxes.length; i++) {
+      const b = boxes[i];
+      const inside = contentY >= b.y && contentY < b.y + b.height;
+      if (inside) return i;
+      const dist = Math.abs(contentY - b.y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = i;
+      }
+    }
+    return best;
+  };
+
+  const handleStageClickForWysiwyg = (ev: MouseEvent): void => {
+    if (viewMode !== 'wysiwyg') return;
+    // Ignore clicks on handles/backdrop/toggles
+    const target = ev.target as HTMLElement | null;
+    if (
+      target?.closest('#scribe-split-handle, #scribe-backdrop, button, a, input, select, textarea')
+    ) {
+      // Let button/input handlers run; but if it's stage/canvas itself, treat as preview click
+      if (!target.closest('#scribe-stage')) return;
+      if (
+        target.tagName === 'BUTTON' ||
+        target.tagName === 'A' ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'SELECT'
+      )
+        return;
+    }
+    const contentY = previewYForClientY(ev.clientY);
+    if (contentY === null) return;
+    const boxIdx = lineIdxForContentY(contentY);
+    const boxes = getMarkdownLineBoxes();
+    const lineCount = sourceLineCount();
+    const lineIdx =
+      boxes.length > 0 && lineCount > 1
+        ? Math.min(
+            lineCount - 1,
+            Math.round((boxIdx / Math.max(1, boxes.length - 1)) * (lineCount - 1)),
+          )
+        : boxIdx;
+    focusAtLine(lineIdx);
+  };
+
+  stage.addEventListener('click', handleStageClickForWysiwyg as EventListener);
+  // Also canvas pointer — pointer events go via Scene but DOM click on stage is sufficient for projection hits
+
+  // ── Focus highlight (Typora focus mode) — HTML overlay on current block ──
+  const getFocusBox = (): { y: number; height: number } | null => {
+    const boxes = getMarkdownLineBoxes();
+    const cur = caretLine();
+    const lineCount = sourceLineCount();
+    if (boxes.length === 0) {
+      const contentH = Math.max(previewScroll.height, markdown.height || 400);
+      const ratio = lineCount > 1 ? cur / Math.max(1, lineCount - 1) : 0;
+      const y = Math.round(ratio * Math.max(0, contentH - 20));
+      return { y, height: 22 };
+    }
+    const idx =
+      lineCount > 1
+        ? Math.min(
+            boxes.length - 1,
+            Math.round((cur / Math.max(1, lineCount - 1)) * (boxes.length - 1)),
+          )
+        : 0;
+    const b = boxes[idx];
+    if (!b) return null;
+    return { y: b.y, height: b.height };
+  };
+
+  const renderFocusHighlight = (): void => {
+    if (!focusHighlightEl) return;
+    if (!focusMode || viewMode !== 'wysiwyg') {
+      focusHighlightEl.hidden = true;
+      focusHighlightEl.classList.remove('is-visible');
+      return;
+    }
+    const box = getFocusBox();
+    if (!box) {
+      focusHighlightEl.hidden = true;
+      focusHighlightEl.classList.remove('is-visible');
+      return;
+    }
+    const previewTop = (previewScroll as unknown as { y: number }).y ?? OUTER_PAD;
+    const scrollTop = getPreviewMetrics().scrollTop;
+    const top = previewTop + box.y - scrollTop;
+    const height = Math.max(20, box.height);
+    const previewLeft = (previewScroll as unknown as { x: number }).x ?? OUTER_PAD;
+    const previewWidth = (previewScroll as unknown as { width: number }).width ?? stage.clientWidth;
+    // Slight inset to match Markdown padding (32px container inset)
+    const inset = 16;
+    focusHighlightEl.style.top = `${Math.round(top)}px`;
+    focusHighlightEl.style.left = `${Math.round(previewLeft + 8)}px`;
+    focusHighlightEl.style.width = `${Math.max(120, Math.round(previewWidth - 16))}px`;
+    focusHighlightEl.style.height = `${Math.round(height + 8)}px`;
+    focusHighlightEl.hidden = false;
+    // trigger transition
+    requestAnimationFrame(() => focusHighlightEl.classList.add('is-visible'));
+    void inset;
+  };
+
+  let focusRaf = 0;
+  const queueFocusHighlight = (): void => {
+    if (focusRaf) cancelAnimationFrame(focusRaf);
+    focusRaf = requestAnimationFrame(() => {
+      focusRaf = 0;
+      renderFocusHighlight();
+    });
+  };
+
+  // Keep highlight in sync with caret moves, scroll, and preview re-render
+  const mirrorForFocus = (): HTMLTextAreaElement | null => getMirrorTextarea();
+  mirrorForFocus()?.addEventListener('keyup', queueFocusHighlight);
+  mirrorForFocus()?.addEventListener('click', queueFocusHighlight);
+  mirrorForFocus()?.addEventListener('input', () => queueFocusHighlight());
+  document.addEventListener('selectionchange', () => {
+    // Only when editor has focus or wysiwyg — cheap guard
+    const active = document.activeElement as HTMLElement | null;
+    if (
+      active?.tagName === 'TEXTAREA' ||
+      !!active?.closest('[data-vecto-a11y-root], #scribe-a11y-root')
+    ) {
+      queueFocusHighlight();
+    }
+  });
+  previewScroll.on('wheel', queueFocusHighlight as unknown as () => void);
+  // Re-render also nudges highlight (debouncedRender does layout+markDirty)
+  const prevDebounced = debouncedRender;
+  void prevDebounced;
+  // Hook after each markdown render: schedule highlight on next frame
+  void renderMarkdownImmediate;
+  // Monkey-patch via wrapper: reassign debouncedRender to also queue highlight
+  // We keep original debouncedRender signature but wrap
+  // Safer: just call queue after preview updates via interval fallback
+  setInterval(queueFocusHighlight, 800);
+  // Also when preview scrolls programmatically (TOC, wysiwyg centering)
+  const origScrollTo = previewScroll.scrollTo.bind(previewScroll);
+  (previewScroll as unknown as { scrollTo: (n: number) => void }).scrollTo = (n: number) => {
+    origScrollTo(n);
+    queueFocusHighlight();
+  };
+  // Initial
+  queueFocusHighlight();
 
   // DPR change also needs reflow even when stage size hasn't changed — Scene's
   // watchDevicePixelRatio will resize backing store, but markdown maxWidth stays
@@ -589,8 +1027,9 @@ function mountScribe(): void {
     armDprWatch();
   }
 
-  // Drag handle
+  // Drag handle (disabled in WYSIWYG)
   if (handle) {
+    const isWysiwygHandle = (): boolean => viewMode === 'wysiwyg';
     let dragging = false;
     let startX = 0;
     let startRatio = splitRatio;
@@ -617,6 +1056,7 @@ function mountScribe(): void {
       }
     };
     handle.addEventListener('pointerdown', (ev) => {
+      if (isWysiwygHandle()) return;
       dragging = true;
       startX = (ev as PointerEvent).clientX;
       startRatio = splitRatio;
@@ -627,6 +1067,7 @@ function mountScribe(): void {
       ev.preventDefault();
     });
     handle.addEventListener('keydown', (ev) => {
+      if (isWysiwygHandle()) return;
       if (ev.key === 'ArrowLeft') {
         splitRatio = Math.max(0.25, splitRatio - 0.05);
         layout();
@@ -735,23 +1176,48 @@ function mountScribe(): void {
   };
   setupToolbarKeyboardNav();
 
-  // Theme toggle
-  const updateTheme = (mode: ThemeMode): void => {
-    themeMode = mode;
-    applyHtmlTheme(mode);
-    persistTheme(mode);
-    const preset = PRESET_FOR_MODE[mode] as keyof typeof PRESET_THEMES;
-    markdown.setTheme(preset);
-    const tokens = TOKENS_BY_MODE[mode];
+  // Theme — preset-aware (CTX-0539): full PRESET_THEMES list, persisted via theme-preset key
+  const syncThemePickers = (preset: MarkdownPreset): void => {
+    if (themePicker) themePicker.value = preset;
+    if (settingsThemePicker) settingsThemePicker.value = preset;
+  };
+
+  const applyThemePreset = (preset: MarkdownPreset): void => {
+    if (!ALL_PRESETS.includes(preset)) return;
+    currentPreset = preset;
+    themeMode = getModeForPreset(preset);
+    applyHtmlTheme(themeMode);
+    persistPreset(preset);
+    markdown.setTheme(preset as keyof typeof PRESET_THEMES);
+    const tokens = TOKENS_BY_MODE[themeMode];
     textArea.bg = tokens.paneBg;
     textArea.color = tokens.shellFg;
     textArea.border = tokens.border;
+    syncThemePickers(preset);
     scene.markDirty();
   };
-  updateTheme(themeMode);
+
+  const updateTheme = (mode: ThemeMode): void => {
+    const preset = PRESET_FOR_MODE[mode] as MarkdownPreset;
+    applyThemePreset(preset);
+  };
+
+  // Initialize from stored preset
+  syncThemePickers(currentPreset);
+  applyThemePreset(currentPreset);
+
+  // Toggle cycles light ↔ dark presets (githubLight ↔ dracula) for backward compat
   themeToggle?.addEventListener('click', () => {
     updateTheme(toggleMode(themeMode));
   });
+
+  const onPresetChange = (e: Event): void => {
+    const target = e.target as HTMLSelectElement;
+    const val = target.value as MarkdownPreset;
+    if (ALL_PRESETS.includes(val)) applyThemePreset(val);
+  };
+  themePicker?.addEventListener('change', onPresetChange);
+  settingsThemePicker?.addEventListener('change', onPresetChange);
 
   // Keyboard shortcuts via Scene channel + window fallback (without breaking IME)
   const handleShortcut = (rawChord: string, nativeEvent: KeyboardEvent): boolean => {
@@ -984,8 +1450,38 @@ function mountScribe(): void {
     persistDocument(model);
   });
 
-  // Expose for devtools + e2e
-  window.__app = { scene, model, markdown, textArea, previewScroll };
+  // Expose for devtools + e2e (CTX-0540 adds view-mode + focus helpers)
+  window.__app = {
+    scene,
+    model,
+    markdown,
+    textArea,
+    previewScroll,
+  } as unknown as typeof window.__app & {
+    stage: HTMLElement;
+  };
+  (window.__app as unknown as { stage: HTMLElement }).stage = stage;
+  (
+    window as unknown as {
+      __scribeViewMode: () => string;
+      __scribeApplyViewMode: (m: string) => void;
+      __scribeFocusMode: () => boolean;
+      __scribeApplyFocusMode: (b: boolean) => void;
+      __scribeFocusAtLine: (n: number) => void;
+    }
+  ).__scribeViewMode = () => viewMode;
+  (window as unknown as { __scribeApplyViewMode: (m: string) => void }).__scribeApplyViewMode = (
+    m: string,
+  ) => {
+    if (m === 'wysiwyg' || m === 'source') applyViewMode(m as ViewMode);
+  };
+  (window as unknown as { __scribeFocusMode: () => boolean }).__scribeFocusMode = () => focusMode;
+  (window as unknown as { __scribeApplyFocusMode: (b: boolean) => void }).__scribeApplyFocusMode = (
+    b: boolean,
+  ) => applyFocusMode(!!b);
+  (window as unknown as { __scribeFocusAtLine: (n: number) => void }).__scribeFocusAtLine = (
+    n: number,
+  ) => focusAtLine(Math.max(0, n | 0));
   (window as unknown as { __scribeApplyAction: (a: ToolbarAction) => void }).__scribeApplyAction =
     applyAction;
   (window as unknown as { __scribeSyncEditorToPreview: () => void }).__scribeSyncEditorToPreview =

@@ -6,5 +6,5 @@
     "MD033": false,
     "MD041": false
   },
-  "ignores": ["**/node_modules/**", "**/dist/**", "**/build/**", "tmp/**", "**/CHANGELOG.md", ".changeset/**"]
+  "ignores": ["**/node_modules/**", "**/dist/**", "**/build/**", "tmp/**", "**/CHANGELOG.md", ".changeset/**", "**/sample.md"]
 }

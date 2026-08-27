@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>Scribe — VectoJS Markdown Editor</title>
     <meta
       name="description"
@@ -134,6 +137,20 @@
         -webkit-tap-highlight-color: transparent;
       }
 
+      /* Collapse toggles — visible on desktop, hidden when overlay takes over */
+      .scribe-collapse-btn {
+        display: inline-flex;
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+      }
+
+      @media (max-width: 900px) {
+        .scribe-collapse-btn {
+          display: none !important;
+        }
+      }
+
       .scribe-icon-btn:hover {
         background: var(--scribe-bg);
       }
@@ -223,12 +240,35 @@
       }
 
       #scribe-toolbar #scribe-theme-toggle {
-        margin-left: auto;
+        margin-left: 8px;
         width: auto;
         padding: 0 10px;
         gap: 6px;
         font-size: 12px;
         font-weight: 500;
+      }
+
+      #scribe-theme-picker,
+      #scribe-settings-theme-picker {
+        height: 28px;
+        padding: 0 8px;
+        border: var(--hairline) solid var(--scribe-border);
+        border-radius: 6px;
+        background: var(--scribe-pane-bg);
+        color: var(--scribe-fg);
+        font-size: 12px;
+        font-family: system-ui, sans-serif;
+        cursor: pointer;
+      }
+
+      #scribe-theme-picker {
+        margin-left: auto;
+      }
+
+      #scribe-theme-picker:focus-visible,
+      #scribe-settings-theme-picker:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 1px;
       }
 
       #scribe-export-group {
@@ -268,6 +308,7 @@
 
       #scribe-explorer {
         width: 220px;
+        min-width: 220px;
         flex-shrink: 0;
         border-right: var(--hairline) solid var(--scribe-border);
         background: var(--scribe-pane-bg);
@@ -277,6 +318,25 @@
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
+        transition:
+          width 220ms cubic-bezier(0.32, 0.72, 0, 1),
+          min-width 220ms cubic-bezier(0.32, 0.72, 0, 1),
+          border-color 220ms,
+          padding 220ms,
+          opacity 160ms;
+      }
+
+      /* Desktop collapsed: animate width 220 -> 0, stage flexes automatically */
+      @media (min-width: 901px) {
+        #scribe-explorer.is-collapsed {
+          width: 0 !important;
+          min-width: 0 !important;
+          padding: 0;
+          overflow: hidden;
+          border-right-width: 0;
+          opacity: 0;
+          pointer-events: none;
+        }
       }
 
       #scribe-explorer h2 {
@@ -311,6 +371,7 @@
 
       #scribe-toc {
         width: 240px;
+        min-width: 240px;
         flex-shrink: 0;
         border-right: var(--hairline) solid var(--scribe-border);
         background: var(--scribe-pane-bg);
@@ -322,6 +383,48 @@
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
+        transition:
+          width 220ms cubic-bezier(0.32, 0.72, 0, 1),
+          min-width 220ms cubic-bezier(0.32, 0.72, 0, 1),
+          border-color 220ms,
+          padding 220ms,
+          opacity 160ms;
+      }
+
+      /* StackEdit-like outline polish: subtle level markers + active state */
+      #scribe-toc li a.is-active {
+        background: var(--scribe-accent-bg);
+        border-left-color: var(--scribe-accent);
+        color: var(--scribe-fg);
+        font-weight: 500;
+      }
+
+      #scribe-toc li a[data-depth="1"] {
+        font-weight: 600;
+      }
+
+      #scribe-toc li a[data-depth="2"] {
+        font-weight: 400;
+      }
+
+      #scribe-toc li a[data-depth="3"],
+      #scribe-toc li a[data-depth="4"],
+      #scribe-toc li a[data-depth="5"],
+      #scribe-toc li a[data-depth="6"] {
+        font-size: 12px;
+        color: var(--scribe-muted);
+      }
+
+      @media (min-width: 901px) {
+        #scribe-toc.is-collapsed {
+          width: 0 !important;
+          min-width: 0 !important;
+          padding: 0;
+          overflow: hidden;
+          border-right-width: 0;
+          opacity: 0;
+          pointer-events: none;
+        }
       }
 
       #scribe-toc h2 {
@@ -718,7 +821,80 @@
       }
 
       /* ── Print: hide chrome, show stage ── */
+
+      /* ── WYSIWYG (Typora) — single editing surface ── */
+      #scribe-wysiwyg-toggle[aria-pressed="true"] {
+        background: var(--scribe-accent-bg);
+        border-color: var(--scribe-accent);
+        color: var(--scribe-fg);
+        font-weight: 600;
+      }
+
+      #scribe-wysiwyg-toggle {
+        width: auto !important;
+        padding: 0 10px;
+        font-size: 12px;
+        font-weight: 500;
+        font-family: system-ui, sans-serif;
+        gap: 6px;
+      }
+
+      #scribe-focus-toggle[aria-pressed="true"] {
+        background: var(--scribe-accent-bg);
+        border-color: var(--scribe-accent);
+      }
+
+      #scribe-focus-toggle {
+        width: auto !important;
+        padding: 0 10px;
+        font-size: 12px;
+        font-family: system-ui, sans-serif;
+      }
+
+      #scribe-focus-highlight {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        background: rgba(217, 119, 87, 0.08);
+        border-left: 2px solid var(--scribe-accent);
+        pointer-events: none;
+        z-index: 3;
+        transition:
+          top 120ms cubic-bezier(0.32, 0.72, 0, 1),
+          height 120ms cubic-bezier(0.32, 0.72, 0, 1),
+          opacity 160ms;
+        opacity: 0;
+      }
+
+      #scribe-focus-highlight.is-visible {
+        opacity: 1;
+      }
+
+      #scribe-stage.is-wysiwyg #scribe-split-handle {
+        display: none !important;
+      }
+
+      #scribe-stage.is-wysiwyg #scribe-focus-highlight:not([hidden]) {
+        display: block;
+      }
+
+      html[data-theme="dark"] #scribe-focus-highlight {
+        background: rgba(232, 160, 122, 0.09);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #scribe-focus-highlight {
+          transition: none;
+        }
+      }
+
+      /* Live mode seamless scroll: hide scrollbars clutter when WYSIWYG */
+      #scribe-stage.is-wysiwyg {
+        background: var(--scribe-pane-bg);
+      }
+
       @media print {
+
         #scribe-header,
         #scribe-explorer,
         #scribe-toc,
@@ -737,7 +913,15 @@
   <body>
     <div id="scribe-app">
       <header id="scribe-header" aria-label="Scribe header">
-        <div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 auto;">
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1 1 auto;
+          "
+        >
           <button
             id="scribe-menu-toggle"
             class="scribe-icon-btn"
@@ -748,10 +932,34 @@
           >
             ☰
           </button>
+          <button
+            id="scribe-toggle-explorer"
+            class="scribe-icon-btn scribe-collapse-btn"
+            type="button"
+            aria-label="Collapse file explorer"
+            aria-expanded="true"
+            aria-controls="scribe-explorer"
+            title="Toggle file explorer (collapse)"
+          >
+            ◀
+          </button>
+          <button
+            id="scribe-toggle-toc"
+            class="scribe-icon-btn scribe-collapse-btn"
+            type="button"
+            aria-label="Collapse outline"
+            aria-expanded="true"
+            aria-controls="scribe-toc"
+            title="Toggle outline"
+          >
+            ☷
+          </button>
           <h1>Scribe</h1>
           <span id="scribe-file-name" aria-live="polite">Untitled.md</span>
         </div>
-        <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+        <div
+          style="display: flex; align-items: center; gap: 12px; flex-shrink: 0"
+        >
           <span id="scribe-save-status" aria-live="polite">Saved</span>
           <button
             id="scribe-settings-toggle"
@@ -764,31 +972,31 @@
             ⚙
           </button>
           <div id="scribe-export-group" aria-label="Export">
-          <button
-            id="scribe-export-md"
-            type="button"
-            title="Download Markdown"
-            aria-label="Download Markdown"
-          >
-            MD
-          </button>
-          <button
-            id="scribe-export-html"
-            type="button"
-            title="Download HTML"
-            aria-label="Download HTML"
-          >
-            HTML
-          </button>
-          <button
-            id="scribe-export-pdf"
-            type="button"
-            title="Print / Save PDF"
-            aria-label="Print PDF"
-          >
-            PDF
-          </button>
-        </div>
+            <button
+              id="scribe-export-md"
+              type="button"
+              title="Download Markdown"
+              aria-label="Download Markdown"
+            >
+              MD
+            </button>
+            <button
+              id="scribe-export-html"
+              type="button"
+              title="Download HTML"
+              aria-label="Download HTML"
+            >
+              HTML
+            </button>
+            <button
+              id="scribe-export-pdf"
+              type="button"
+              title="Print / Save PDF"
+              aria-label="Print PDF"
+            >
+              PDF
+            </button>
+          </div>
         </div>
       </header>
       <!-- Toolbar: StackEdit/Typora familiar row, HTML buttons with inline SVG (cdn-vectojs/scribe/*) -->
@@ -945,6 +1153,37 @@
             $$
           </button>
         </div>
+        <div class="toolbar-group" aria-label="View mode">
+          <button
+            type="button"
+            id="scribe-wysiwyg-toggle"
+            title="Toggle WYSIWYG / Source (Typora)"
+            aria-label="Toggle WYSIWYG mode"
+            aria-pressed="false"
+          >
+            Live
+          </button>
+          <button
+            type="button"
+            id="scribe-focus-toggle"
+            title="Toggle focus mode (highlight current paragraph)"
+            aria-label="Toggle focus mode"
+            aria-pressed="false"
+          >
+            ◎ Focus
+          </button>
+        </div>
+        <select
+          id="scribe-theme-picker" 
+          aria-label="Markdown theme"
+          title="Markdown theme"
+        >
+          <option value="githubLight">GitHub Light</option>
+          <option value="githubDark">GitHub Dark</option>
+          <option value="dracula">Dracula</option>
+          <option value="solarizedLight">Solarized Light</option>
+          <option value="solarizedDark">Solarized Dark</option>
+        </select>
         <button
           type="button"
           id="scribe-theme-toggle"
@@ -963,7 +1202,7 @@
         <nav id="scribe-explorer" aria-label="File explorer">
           <h2>Explorer</h2>
           <ul id="scribe-file-list" role="listbox" aria-label="Files">
-            <li role="option" aria-selected="true">Untitled.md</li>
+            <li role="option" aria-selected="true">Kitchen Sink.md</li>
             <li role="option" aria-selected="false">Welcome.md</li>
             <li role="option" aria-selected="false">Notes.md</li>
           </ul>
@@ -975,8 +1214,9 @@
         <div id="scribe-stage" aria-label="Editor stage">
           <canvas id="scribe-canvas" aria-label="Scribe editor canvas"></canvas>
           <div id="scribe-a11y-root"></div>
+          <div id="scribe-focus-highlight" aria-hidden="true" hidden></div>
           <div
-            id="scribe-split-handle"
+            id="scribe-split-handle" 
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize editor and preview"
@@ -994,6 +1234,29 @@
               ><input type="checkbox" id="scribe-scroll-sync" checked /> Scroll
               sync</label
             >
+            <label
+              ><input type="checkbox" id="scribe-focus-mode" /> Focus
+              mode</label
+            >
+            <div style="margin: 12px 0 8px">
+              <label
+                for="scribe-settings-theme-picker"
+                style="font-size: 12px; font-weight: 600; margin-bottom: 6px"
+                >Markdown theme</label
+              >
+              <select
+                id="scribe-settings-theme-picker"
+                aria-label="Markdown theme (settings)"
+                style="width: 100%"
+              >
+                <option value="githubLight">GitHub Light</option>
+                <option value="githubDark">GitHub Dark</option>
+                <option value="dracula">Dracula</option>
+                <option value="solarizedLight">Solarized Light</option>
+                <option value="solarizedDark">Solarized Dark</option>
+              </select>
+              <p class="hint">Applies to preview, editor and shell chrome.</p>
+            </div>
             <p class="hint">
               Hybrid shell: outer chrome is plain HTML/CSS; center stage is
               VectoJS canvas + a11y projection.
