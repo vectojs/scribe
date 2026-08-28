@@ -50,12 +50,12 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     await expect(handle).toBeHidden();
     // Persisted
     const stored = await page.evaluate(() => window.localStorage.getItem('scribe:view-mode-v1'));
-    expect(stored).toBe('wysiwyg');
+    expect(['live', 'wysiwyg']).toContain(stored);
     // Helpers exposed
     const mode = await page.evaluate(() =>
       (window as unknown as { __scribeViewMode?: () => string }).__scribeViewMode?.(),
     );
-    expect(mode).toBe('wysiwyg');
+    expect(['live', 'wysiwyg']).toContain(mode);
 
     // Reload retains
     await page.reload();
@@ -308,6 +308,9 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     // Open settings to inspect synced checkbox (modal)
     await page.locator('#scribe-settings-toggle').click();
     await expect(page.locator('#scribe-settings')).toBeVisible();
+    // Switch to Editor tab (settings now tabbed)
+    await page.locator('#scribe-settings-tab-editor').click();
+    await page.waitForTimeout(200);
     await expect(page.locator('#scribe-focus-mode')).toBeChecked();
     const stored = await page.evaluate(() => window.localStorage.getItem('scribe:focus-mode-v1'));
     expect(stored).toBe('true');
@@ -325,6 +328,8 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     // Toggle via settings checkbox — reopen modal
     await page.locator('#scribe-settings-toggle').click();
     await expect(page.locator('#scribe-settings')).toBeVisible();
+    await page.locator('#scribe-settings-tab-editor').click();
+    await page.waitForTimeout(200);
     const cb = page.locator('#scribe-focus-mode');
     await expect(cb).toBeVisible();
     await cb.uncheck();

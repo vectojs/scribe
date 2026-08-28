@@ -169,6 +169,11 @@ function mountScribe(): void {
   const focusToggleBtn = document.getElementById('scribe-focus-toggle') as HTMLButtonElement | null;
   const focusModeCb = document.getElementById('scribe-focus-mode') as HTMLInputElement | null;
   const focusHighlightEl = document.getElementById('scribe-focus-highlight') as HTMLElement | null;
+  // View mode 3-state (Obsidian: Reading / Source / Live Preview) — CTX-0549
+  const viewModeSelect = document.getElementById('scribe-view-mode') as HTMLSelectElement | null;
+  const settingsViewModeSelect = document.getElementById(
+    'scribe-settings-view-mode',
+  ) as HTMLSelectElement | null;
   // Inline WYSIWYG (Obsidian Live Preview) — CTX-0541+ Phase 2
   const inlineSourceEl = document.getElementById('scribe-inline-source') as HTMLElement | null;
   // Status bar word count (CTX-0545) + visible overlay scrollbars (8px, always visible)
@@ -503,14 +508,15 @@ function mountScribe(): void {
   });
 
   // ── WYSIWYG view mode + Focus mode (CTX-0540, Typora-inspired) ──────────
-  type ViewMode = 'source' | 'wysiwyg';
+  type ViewMode = 'source' | 'live' | 'reading';
   const VIEW_MODE_KEY = 'scribe:view-mode-v1';
   const FOCUS_MODE_KEY = 'scribe:focus-mode-v1';
 
   const readViewMode = (): ViewMode => {
     try {
       const raw = window.localStorage.getItem(VIEW_MODE_KEY);
-      if (raw === 'wysiwyg' || raw === 'source') return raw;
+      if (raw === 'live' || raw === 'reading' || raw === 'source') return raw as ViewMode;
+      if (raw === 'wysiwyg') return 'live';
     } catch {
       // ignore
     }
@@ -541,17 +547,57 @@ function mountScribe(): void {
   let viewMode: ViewMode = readViewMode();
   let focusMode = readFocusMode();
 
-  const updateWysiwygChrome = (mode: ViewMode): void => {
-    const isWysiwyg = mode === 'wysiwyg';
+  const updateViewModeChrome = (mode: ViewMode): void => {
+    const isLive = mode === 'live';
+    const isReading = mode === 'reading';
+    const isSource = mode === 'source';
+    const isLiveLike = isLive || isReading;
     if (wysiwygToggleBtn) {
-      wysiwygToggleBtn.setAttribute('aria-pressed', String(isWysiwyg));
-      wysiwygToggleBtn.textContent = isWysiwyg
-        ? t('toolbar.wysiwyg.source')
-        : t('toolbar.wysiwyg.live');
-      wysiwygToggleBtn.title = isWysiwyg
-        ? t('toolbar.wysiwyg.titleSource')
-        : t('toolbar.wysiwyg.titleLive');
+      // Legacy toggle: pressed when not in source (live or reading)
+      wysiwygToggleBtn.setAttribute('aria-pressed', String(isLiveLike));
+      if (isLiveLike) {
+        wysiwygToggleBtn.textContent = t('toolbar.wysiwyg.source');
+        wysiwygToggleBtn.title = t('toolbar.wysiwyg.titleSource');
+      } else {
+        wysiwygToggleBtn.textContent = t('toolbar.wysiwyg.live');
+        wysiwygToggleBtn.title = t('toolbar.wysiwyg.titleLive');
+      }
       wysiwygToggleBtn.setAttribute('aria-label', t('toolbar.wysiwyg.label'));
+      // Disable editing hint in reading: button still enabled to exit reading -> source
+      wysiwygToggleBtn.disabled = false;
+    }
+    if (viewModeSelect) {
+      viewModeSelect.value = mode;
+      viewModeSelect.setAttribute('aria-label', t('toolbar.viewMode.select.label'));
+      viewModeSelect.title = t('toolbar.viewMode.select.title');
+      // update option texts for current locale
+      const optReading = viewModeSelect.querySelector(
+        'option[value="reading"]',
+      ) as HTMLOptionElement | null;
+      const optSource = viewModeSelect.querySelector(
+        'option[value="source"]',
+      ) as HTMLOptionElement | null;
+      const optLive = viewModeSelect.querySelector(
+        'option[value="live"]',
+      ) as HTMLOptionElement | null;
+      if (optReading) optReading.textContent = t('toolbar.viewMode.reading');
+      if (optSource) optSource.textContent = t('toolbar.viewMode.source');
+      if (optLive) optLive.textContent = t('toolbar.viewMode.live');
+    }
+    if (settingsViewModeSelect) {
+      settingsViewModeSelect.value = mode;
+      const oR = settingsViewModeSelect.querySelector(
+        'option[value="reading"]',
+      ) as HTMLOptionElement | null;
+      const oS = settingsViewModeSelect.querySelector(
+        'option[value="source"]',
+      ) as HTMLOptionElement | null;
+      const oL = settingsViewModeSelect.querySelector(
+        'option[value="live"]',
+      ) as HTMLOptionElement | null;
+      if (oR) oR.textContent = t('settings.viewMode.reading');
+      if (oS) oS.textContent = t('settings.viewMode.source');
+      if (oL) oL.textContent = t('settings.viewMode.live');
     }
     if (focusToggleBtn) {
       focusToggleBtn.textContent = t('toolbar.focus.text');
@@ -560,14 +606,51 @@ function mountScribe(): void {
     }
     if (focusToggleBtn) {
       focusToggleBtn.setAttribute('aria-pressed', String(focusMode));
+      // Focus disabled in reading
+      (focusToggleBtn as HTMLButtonElement).disabled = isReading;
+      if (isReading) focusToggleBtn.setAttribute('aria-disabled', 'true');
+      else focusToggleBtn.removeAttribute('aria-disabled');
     }
-    if (focusModeCb) focusModeCb.checked = focusMode;
-    if (settingsWysiwygCb) settingsWysiwygCb.checked = isWysiwyg;
+    if (focusModeCb) {
+      focusModeCb.checked = focusMode;
+      focusModeCb.disabled = isReading;
+    }
+    if (settingsWysiwygCb) settingsWysiwygCb.checked = isLive;
     if (stage) {
-      stage.classList.toggle('is-wysiwyg', isWysiwyg);
+      stage.classList.toggle('is-wysiwyg', isLiveLike);
+      stage.classList.toggle('is-live', isLive);
+      stage.classList.toggle('is-reading', isReading);
+      stage.classList.toggle('is-source', isSource);
     }
+    // For toolbar dimming via CSS
+    try {
+      document.documentElement.setAttribute('data-view-mode', mode);
+    } catch {}
+    // Toolbar editing buttons disabled in reading
+    if (toolbarEl) {
+      const editBtns = toolbarEl.querySelectorAll(
+        'button[data-action]',
+      ) as NodeListOf<HTMLButtonElement>;
+      editBtns.forEach((btn) => {
+        btn.disabled = isReading;
+        if (isReading) btn.setAttribute('aria-disabled', 'true');
+        else btn.removeAttribute('aria-disabled');
+      });
+    }
+    // Settings inline buttons also disabled in reading
+    if (settingsViewModeSelect) {
+      // nothing
+    }
+    const inlineBtns = document.querySelectorAll<HTMLButtonElement>(
+      '.scribe-settings__inline-btn[data-action]',
+    );
+    inlineBtns.forEach((btn) => {
+      btn.disabled = isReading;
+      if (isReading) btn.setAttribute('aria-disabled', 'true');
+      else btn.removeAttribute('aria-disabled');
+    });
     if (focusHighlightEl) {
-      if (!focusMode || !isWysiwyg) {
+      if (!focusMode || !isLive) {
         focusHighlightEl.hidden = true;
         focusHighlightEl.classList.remove('is-visible');
       } else {
@@ -575,13 +658,15 @@ function mountScribe(): void {
       }
     }
     if (inlineSourceEl) {
-      if (!isWysiwyg) {
+      if (!isLive) {
         inlineSourceEl.hidden = true;
         inlineSourceEl.classList.remove('is-visible');
       }
-      // In wysiwyg, visibility is driven by renderInlineWysiwyg; keep hidden until that runs
+      // In live, visibility is driven by renderInlineWysiwyg; keep hidden until that runs
     }
   };
+  // Alias for backward compat (old name)
+  const updateWysiwygChrome = updateViewModeChrome;
 
   const scene = new Scene(canvas, {
     disableWindowResize: true,
@@ -1361,6 +1446,35 @@ function mountScribe(): void {
           wysiwygLabelEl.appendChild(document.createTextNode(' ' + t('settings.wysiwyg', locale)));
       }
     }
+    // View mode selects i18n (CTX-0549)
+    try {
+      const vmSel = document.getElementById('scribe-view-mode') as HTMLSelectElement | null;
+      if (vmSel) {
+        vmSel.setAttribute('aria-label', t('toolbar.viewMode.select.label', locale));
+        vmSel.title = t('toolbar.viewMode.select.title', locale);
+        const oR = vmSel.querySelector('option[value="reading"]') as HTMLOptionElement | null;
+        const oS = vmSel.querySelector('option[value="source"]') as HTMLOptionElement | null;
+        const oL = vmSel.querySelector('option[value="live"]') as HTMLOptionElement | null;
+        if (oR) oR.textContent = t('toolbar.viewMode.reading', locale);
+        if (oS) oS.textContent = t('toolbar.viewMode.source', locale);
+        if (oL) oL.textContent = t('toolbar.viewMode.live', locale);
+      }
+      const sVmSel = document.getElementById(
+        'scribe-settings-view-mode',
+      ) as HTMLSelectElement | null;
+      if (sVmSel) {
+        const oR2 = sVmSel.querySelector('option[value="reading"]') as HTMLOptionElement | null;
+        const oS2 = sVmSel.querySelector('option[value="source"]') as HTMLOptionElement | null;
+        const oL2 = sVmSel.querySelector('option[value="live"]') as HTMLOptionElement | null;
+        if (oR2) oR2.textContent = t('settings.viewMode.reading', locale);
+        if (oS2) oS2.textContent = t('settings.viewMode.source', locale);
+        if (oL2) oL2.textContent = t('settings.viewMode.live', locale);
+        const vmHint = document.getElementById(
+          'scribe-settings-viewmode-hint',
+        ) as HTMLElement | null;
+        if (vmHint) vmHint.textContent = t('settings.viewMode.hint', locale);
+      }
+    } catch {}
     // markdown theme label in settings
     const mdThemeLabel = settingsPanel?.querySelector(
       'label[for="scribe-settings-theme-picker"]',
@@ -2057,7 +2171,7 @@ function mountScribe(): void {
   });
   previewScroll.on('wheel', () => {
     if (!scrollSyncEnabled) return;
-    if (viewMode === 'wysiwyg') return;
+    if (viewMode !== 'source') return;
     throttledPreviewWheelSync();
   });
   // Fix: ScrollView only scrolls when pointer over preview content [data-vecto-content]; blank gutters don't scroll.
@@ -2082,8 +2196,8 @@ function mountScribe(): void {
       // Compute editor pane width for split detection
       const avail = Math.max(320, sW);
       const editorW = Math.round((avail - GAP - HANDLE_W) * splitRatio);
-      const isOverPreviewPane = viewMode === 'wysiwyg' ? true : xInStage >= editorW + GAP / 2;
-      const isOverEditorPane = !isOverPreviewPane && viewMode !== 'wysiwyg';
+      const isOverPreviewPane = viewMode !== 'source' ? true : xInStage >= editorW + GAP / 2;
+      const isOverEditorPane = !isOverPreviewPane && viewMode !== 'source';
       if (isOverPreviewPane) {
         const curTop = -(previewScroll as unknown as { content: { y: number } }).content.y || 0;
         const contentH =
@@ -2221,7 +2335,7 @@ function mountScribe(): void {
 
   const updateEditorScrollbar = (): void => {
     if (!scrollbarEditorEl || !scrollbarEditorThumb) return;
-    if (viewMode === 'wysiwyg') {
+    if (viewMode !== 'source') {
       scrollbarEditorEl.hidden = true;
       return;
     }
@@ -2305,8 +2419,8 @@ function mountScribe(): void {
     })();
     const gutter = Math.max(CENTERED_GUTTER_MIN, responsiveGutter);
 
-    if (viewMode === 'wysiwyg') {
-      // Typora single surface: centered with max 860, balanced gutters
+    if (viewMode !== 'source') {
+      // Obsidian: live and reading share centered single surface (max 860, balanced gutters); reading is preview-only
       textArea.width = 1;
       textArea.height = 1;
       textArea.x = -10000;
@@ -2565,12 +2679,12 @@ function mountScribe(): void {
   const applyViewMode = (next: ViewMode): void => {
     viewMode = next;
     writeViewMode(next);
-    updateWysiwygChrome(next);
+    updateViewModeChrome(next);
     layout();
-    // In WYSIWYG, preview is the editing surface — focus hidden source for typing
+    // In live, preview is the editing surface — focus hidden source for typing
     // Mirror is offscreen (TextArea at -10000) but must stay focused for input -> debouncedRender.
     // Focus may be lost if button retains focus or if a11y textarea not yet projected (rAF timing).
-    if (next === 'wysiwyg') {
+    if (next === 'live') {
       const tryFocusMirror = (attempts = 0): void => {
         const mirror = getMirrorTextarea();
         if (mirror) {
@@ -2594,6 +2708,12 @@ function mountScribe(): void {
       // Fallback timer for browsers that defer a11y projection
       window.setTimeout(() => tryFocusMirror(), 50);
       window.setTimeout(() => tryFocusMirror(), 200);
+    } else if (next === 'reading') {
+      // Reading: preview only, disable editing overlay, blur hidden textarea to prevent stray input
+      try {
+        const mirror = getMirrorTextarea();
+        if (mirror && document.activeElement === mirror) (mirror as HTMLElement).blur();
+      } catch {}
     }
     scene.markDirty();
     try {
@@ -2609,7 +2729,7 @@ function mountScribe(): void {
   };
 
   wysiwygToggleBtn?.addEventListener('click', () => {
-    applyViewMode(viewMode === 'wysiwyg' ? 'source' : 'wysiwyg');
+    applyViewMode(viewMode === 'source' ? 'live' : 'source');
   });
 
   const applyFocusMode = (enabled: boolean): void => {
@@ -2630,9 +2750,35 @@ function mountScribe(): void {
     applyFocusMode(!!focusModeCb.checked);
   });
   settingsWysiwygCb?.addEventListener('change', () => {
-    const next: ViewMode = settingsWysiwygCb.checked ? 'wysiwyg' : 'source';
+    const next: ViewMode = settingsWysiwygCb.checked ? 'live' : 'source';
     applyViewMode(next);
   });
+  // New 3-state view mode selects (toolbar + settings)
+  viewModeSelect?.addEventListener('change', () => {
+    const v = (viewModeSelect.value as ViewMode) ?? 'source';
+    if (v === 'live' || v === 'reading' || v === 'source') applyViewMode(v);
+  });
+  settingsViewModeSelect?.addEventListener('change', () => {
+    const v = (settingsViewModeSelect.value as ViewMode) ?? 'source';
+    if (v === 'live' || v === 'reading' || v === 'source') applyViewMode(v);
+  });
+  // Settings inline formatting buttons -> toolbar actions (when not in reading)
+  document
+    .querySelectorAll<HTMLButtonElement>('.scribe-settings__inline-btn[data-action]')
+    .forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if ((document.documentElement.getAttribute('data-view-mode') as string) === 'reading')
+          return;
+        const action = btn.getAttribute('data-action') as string | null;
+        if (!action) return;
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as unknown as { __scribeApplyAction?: (a: any) => void }).__scribeApplyAction?.(
+            action as any,
+          );
+        } catch {}
+      });
+    });
 
   // ── Click-to-edit on preview (WYSIWYG): hit block → caret at source line ─
   const sourceLineCount = (): number => {
@@ -2691,7 +2837,7 @@ function mountScribe(): void {
     } catch {
       // ignore
     }
-    if (viewMode === 'wysiwyg') {
+    if (viewMode === 'live') {
       // Keep caret line roughly centered via preview scroll (Typora seam)
       const boxes = getMarkdownLineBoxes();
       const lineCount = sourceLineCount();
@@ -2891,8 +3037,8 @@ function mountScribe(): void {
       } catch {
         // ignore
       }
-      // 3) WYSIWYG click-to-edit — only in wysiwyg, maps preview Y → source line
-      if (viewMode !== 'wysiwyg') return;
+      // 3) WYSIWYG click-to-edit — only in live, maps preview Y → source line (reading is preview-only)
+      if (viewMode !== 'live') return;
       const contentY = previewYForClientY(ev.clientY);
       if (contentY === null) return;
       const boxIdx = lineIdxForContentY(contentY);
@@ -2911,7 +3057,7 @@ function mountScribe(): void {
   );
 
   const handleStageClickForWysiwyg = (ev: MouseEvent): void => {
-    if (viewMode !== 'wysiwyg') return;
+    if (viewMode !== 'live') return;
     const target = ev.target as HTMLElement | null;
     if (
       target?.closest('#scribe-split-handle, #scribe-backdrop, button, a, input, select, textarea')
@@ -2972,7 +3118,7 @@ function mountScribe(): void {
 
   const renderFocusHighlight = (): void => {
     if (!focusHighlightEl) return;
-    if (!focusMode || viewMode !== 'wysiwyg') {
+    if (!focusMode || viewMode !== 'live') {
       focusHighlightEl.hidden = true;
       focusHighlightEl.classList.remove('is-visible');
       return;
@@ -3047,7 +3193,7 @@ function mountScribe(): void {
   // ── Inline WYSIWYG (Obsidian Live Preview) — per-block source overlay ──
   renderInlineWysiwyg = (): void => {
     if (!inlineSourceEl) return;
-    if (viewMode !== 'wysiwyg') {
+    if (viewMode !== 'live') {
       inlineSourceEl.hidden = true;
       inlineSourceEl.classList.remove('is-visible');
       const prevIdx = lastInlineActiveIdx;
@@ -3153,8 +3299,8 @@ function mountScribe(): void {
   };
 
   queueInlineWysiwyg = (): void => {
-    // Bug B: source mode must never show inline overlay — hide synchronously and cancel pending
-    if (viewMode !== 'wysiwyg') {
+    // Bug B: source/reading must never show inline overlay — hide synchronously and cancel pending (only live shows inline)
+    if (viewMode !== 'live') {
       if (inlineRaf) {
         cancelAnimationFrame(inlineRaf);
         inlineRaf = 0;
@@ -3191,8 +3337,8 @@ function mountScribe(): void {
     queueInlineWysiwyg();
   });
   document.addEventListener('selectionchange', () => {
-    // Bug B: source mode must never show inline overlay — gate even textarea selection
-    if (viewMode !== 'wysiwyg') return;
+    // Bug B: source/reading must never show inline overlay — gate even textarea selection (only live shows inline)
+    if (viewMode !== 'live') return;
     const active = document.activeElement as HTMLElement | null;
     if (
       active?.tagName === 'TEXTAREA' ||
@@ -3200,7 +3346,8 @@ function mountScribe(): void {
     ) {
       queueInlineWysiwyg();
     } else {
-      // selectionchange may fire without focus in wysiwyg due to programmatic selection
+      // selectionchange may fire without focus in live due to programmatic selection
+
       queueInlineWysiwyg();
     }
   });
@@ -3208,9 +3355,9 @@ function mountScribe(): void {
   previewScroll.on('pointermove', () => {
     // sync during drag stays subtle; just ensure overlay follows scroll
   });
-  // Re-render also nudges inline overlay — gated to wysiwyg only (Bug B: source must never show)
+  // Re-render also nudges inline overlay — gated to live only (Bug B: source/reading must never show)
   setInterval(() => {
-    if (viewMode === 'wysiwyg') queueInlineWysiwyg();
+    if (viewMode === 'live') queueInlineWysiwyg();
     else if (inlineSourceEl && !inlineSourceEl.hidden) {
       inlineSourceEl.hidden = true;
       inlineSourceEl.classList.remove('is-visible');
@@ -3261,7 +3408,7 @@ function mountScribe(): void {
 
   // Drag handle (disabled in WYSIWYG)
   if (handle) {
-    const isWysiwygHandle = (): boolean => viewMode === 'wysiwyg';
+    const isWysiwygHandle = (): boolean => viewMode !== 'source';
     let dragging = false;
     let startX = 0;
     let startRatio = splitRatio;
@@ -4099,7 +4246,7 @@ function mountScribe(): void {
 
   // Detect editor pane via geometry; previewScroll.x is the left of the centered preview content.
   const isInEditorPane = (clientX: number): boolean => {
-    if (viewMode === 'wysiwyg') return false;
+    if (viewMode !== 'source') return false;
     const rect = stage.getBoundingClientRect();
     const xInStage = clientX - rect.left;
     try {
@@ -4314,7 +4461,9 @@ function mountScribe(): void {
   (window as unknown as { __scribeApplyViewMode: (m: string) => void }).__scribeApplyViewMode = (
     m: string,
   ) => {
-    if (m === 'wysiwyg' || m === 'source') applyViewMode(m as ViewMode);
+    const normalized = m === 'wysiwyg' ? 'live' : m;
+    if (normalized === 'live' || normalized === 'source' || normalized === 'reading')
+      applyViewMode(normalized as ViewMode);
   };
   (window as unknown as { __scribeFocusMode: () => boolean }).__scribeFocusMode = () => focusMode;
   (window as unknown as { __scribeApplyFocusMode: (b: boolean) => void }).__scribeApplyFocusMode = (
@@ -4337,7 +4486,7 @@ function mountScribe(): void {
     return findActiveBlockIdx(textArea.selectionStart ?? 0, textArea.selectionEnd ?? 0, blocks);
   };
   (window as unknown as { __scribeInlineVisible: () => boolean }).__scribeInlineVisible = () =>
-    !!inlineSourceEl && !inlineSourceEl.hidden && viewMode === 'wysiwyg';
+    !!inlineSourceEl && !inlineSourceEl.hidden && viewMode === 'live';
   (window as unknown as { __scribeInlineRaw: () => string | null }).__scribeInlineRaw = () =>
     inlineSourceEl && !inlineSourceEl.hidden ? inlineSourceEl.textContent : null;
   (window as unknown as { __scribeGetSourceBlocks: () => SourceBlock[] }).__scribeGetSourceBlocks =

@@ -36,6 +36,9 @@
         --scribe-bg: #f7f4ee;
         --scribe-pane-bg: #fffdf9;
         --scribe-sidebar-bg: #f5f3ef;
+        --scribe-sidebar-border: #e8e8e8;
+        --scribe-sidebar-active: #e8e8e8;
+        --scribe-sidebar-hover: #f0f0f0;
         --scribe-border: #e5ddd3;
         --scribe-fg: #1a1a1a;
         --scribe-muted: #6b6256;
@@ -65,6 +68,9 @@
         --scribe-bg: #0f1115;
         --scribe-pane-bg: #1a1e24;
         --scribe-sidebar-bg: #1e232b;
+        --scribe-sidebar-border: #2a2f3a;
+        --scribe-sidebar-active: #2a3038;
+        --scribe-sidebar-hover: #252b33;
         --scribe-border: #2a2f3a;
         --scribe-fg: #e6e2de;
         --scribe-muted: #9aa0a8;
@@ -343,6 +349,29 @@
         font-size: 14px;
       }
 
+      .scribe-settings__inline-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 28px;
+        padding: 0 8px;
+        border: var(--hairline) solid var(--scribe-border);
+        border-radius: 6px;
+        background: var(--scribe-pane-bg);
+        color: var(--scribe-fg);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .scribe-settings__inline-btn:hover {
+        background: var(--scribe-bg);
+        border-color: var(--scribe-accent);
+      }
+      .scribe-settings__inline-btn:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 1px;
+      }
+
       @media (max-width: 900px) {
         .scribe-collapse-btn {
           display: none !important;
@@ -429,6 +458,20 @@
         stroke: currentColor;
       }
 
+      /* ── Compact toolbar (Obsidian): hide secondary formatting — moved to Settings/Editor & context menu */
+      #scribe-toolbar .toolbar-group[aria-label="块"],
+      #scribe-toolbar .toolbar-group[aria-label="插入"] {
+        display: none;
+      }
+      html[data-view-mode="reading"] #scribe-toolbar button[data-action] {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+      html[data-view-mode="reading"] #scribe-toolbar #scribe-focus-toggle {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+
       #scribe-toolbar .toolbar-sep {
         width: 1px;
         height: 18px;
@@ -467,6 +510,24 @@
 
       #scribe-lang-picker {
         margin-left: 8px;
+      }
+
+      #scribe-view-mode,
+      #scribe-settings-view-mode {
+        height: 28px;
+        padding: 0 8px;
+        border: var(--hairline) solid var(--scribe-border);
+        border-radius: 6px;
+        background: var(--scribe-pane-bg);
+        color: var(--scribe-fg);
+        font-size: 12px;
+        font-family: system-ui, sans-serif;
+        cursor: pointer;
+      }
+      #scribe-view-mode:focus-visible,
+      #scribe-settings-view-mode:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 1px;
       }
 
       #scribe-theme-picker:focus-visible,
@@ -516,7 +577,7 @@
         width: 220px;
         min-width: 220px;
         flex-shrink: 0;
-        border-right: var(--hairline) solid var(--scribe-border);
+        border-right: var(--hairline) solid var(--scribe-sidebar-border);
         background: var(--scribe-sidebar-bg);
         overflow-y: auto;
         overflow-x: hidden;
@@ -579,7 +640,7 @@
         width: 240px;
         min-width: 240px;
         flex-shrink: 0;
-        border-right: var(--hairline) solid var(--scribe-border);
+        border-right: var(--hairline) solid var(--scribe-sidebar-border);
         background: var(--scribe-sidebar-bg);
         overflow-y: auto;
         overflow-x: hidden;
@@ -709,7 +770,7 @@
         touch-action: pan-y;
         user-select: text;
         /* centered reading column lives in canvas coords; a11y mirror follows same centered X,
-           but ensure text selection doesn't overflow padded gutters */
+                 but ensure text selection doesn't overflow padded gutters */
         max-width: var(--scribe-centered-max);
         scrollbar-gutter: stable;
       }
@@ -1098,6 +1159,30 @@
       }
 
       /* ── Ribbon responsive: hide on narrow (Obsidian) + collapsible ── */
+
+      .scribe-settings__inline-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 28px;
+        padding: 0 8px;
+        border: var(--hairline) solid var(--scribe-border);
+        border-radius: 6px;
+        background: var(--scribe-pane-bg);
+        color: var(--scribe-fg);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .scribe-settings__inline-btn:hover {
+        background: var(--scribe-bg);
+        border-color: var(--scribe-accent);
+      }
+      .scribe-settings__inline-btn:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 1px;
+      }
+
       @media (max-width: 900px) {
         #scribe-ribbon {
           display: none !important;
@@ -1105,6 +1190,30 @@
       }
 
       /* ── Responsive: 900px overlay (explorer / toc become drawers; settings is modal) ── */
+
+      .scribe-settings__inline-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 28px;
+        padding: 0 8px;
+        border: var(--hairline) solid var(--scribe-border);
+        border-radius: 6px;
+        background: var(--scribe-pane-bg);
+        color: var(--scribe-fg);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .scribe-settings__inline-btn:hover {
+        background: var(--scribe-bg);
+        border-color: var(--scribe-accent);
+      }
+      .scribe-settings__inline-btn:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 1px;
+      }
+
       @media (max-width: 900px) {
         .scribe-icon-btn {
           display: inline-flex;
@@ -1280,6 +1389,25 @@
       }
 
       /* ── Breakpoint: 2560px large desktop (1440p) ── */
+
+      #scribe-explorer li[aria-selected="true"] {
+        background: var(--scribe-sidebar-active);
+        border-left-color: var(--scribe-accent);
+        color: var(--scribe-fg);
+      }
+      #scribe-explorer li:hover {
+        background: var(--scribe-sidebar-hover);
+      }
+      #scribe-toc li a.is-active {
+        background: var(--scribe-sidebar-active);
+        border-left-color: var(--scribe-accent);
+        color: var(--scribe-fg);
+        font-weight: 500;
+      }
+      #scribe-toc li a:hover {
+        background: var(--scribe-sidebar-hover);
+      }
+
       @media (min-width: 1920px) {
         #scribe-app {
           max-width: 1920px;
@@ -1414,26 +1542,46 @@
       }
 
       /* Live mode seamless scroll: hide scrollbars clutter when WYSIWYG
-         Centered column: canvas entities are centered via layout() (max 860, balanced gutters).
-         Stage gutters use paneBg so centered paper blends like Obsidian/Typora;
-         switch to var(--scribe-bg) for linen-style contrast if desired. */
+               Centered column: canvas entities are centered via layout() (max 860, balanced gutters).
+               Stage gutters use paneBg so centered paper blends like Obsidian/Typora;
+               switch to var(--scribe-bg) for linen-style contrast if desired. */
       #scribe-stage.is-wysiwyg {
         background: var(--scribe-pane-bg);
       }
 
+      /* ── Reading mode (Obsidian): preview only, no editing, no inline source, centered 860 */
+      #scribe-stage.is-reading {
+        background: var(--scribe-pane-bg);
+      }
+      #scribe-stage.is-reading #scribe-split-handle {
+        display: none !important;
+      }
+      #scribe-stage.is-reading #scribe-inline-source {
+        display: none !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+      #scribe-stage.is-reading #scribe-focus-highlight {
+        display: none !important;
+      }
+      html[data-view-mode="reading"] #scribe-toolbar button[data-action] {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+
       /* Centered reading column — canvas ScrollView/TextArea are centered via JS,
-         but HTML overlays (focus highlight, inline source) also need balanced gutters */
+               but HTML overlays (focus highlight, inline source) also need balanced gutters */
       #scribe-stage.is-wysiwyg #scribe-inline-source,
       #scribe-stage.is-wysiwyg #scribe-focus-highlight {
         /* JS sets left/width to previewScroll.x + 8 / width -16 which is already centered;
-           CSS caps max-width to centered max so overlay never exceeds 860 even if JS mis-measures */
+                 CSS caps max-width to centered max so overlay never exceeds 860 even if JS mis-measures */
         max-width: min(var(--scribe-centered-max), calc(100% - 32px));
         box-sizing: border-box;
       }
 
       /* ── Inline WYSIWYG (Obsidian Live Preview) — per-block source overlay
-           Centered (Obsidian): JS positions at previewScroll.x+8 with width-16 which is already
-           centered when layout() centers previewScroll; CSS caps to centered max for safety. ── */
+                 Centered (Obsidian): JS positions at previewScroll.x+8 with width-16 which is already
+                 centered when layout() centers previewScroll; CSS caps to centered max for safety. ── */
       #scribe-inline-source {
         position: absolute;
         left: 0;
@@ -2099,6 +2247,15 @@
             </button>
           </div>
           <div class="toolbar-group" aria-label="视图模式">
+            <select
+              id="scribe-view-mode"
+              aria-label="视图模式"
+              title="切换视图（阅读 / 源码 / 实时预览）"
+            >
+              <option value="reading">阅读</option>
+              <option value="source">源码</option>
+              <option value="live">实时预览</option>
+            </select>
             <button
               type="button"
               id="scribe-wysiwyg-toggle"
@@ -2352,6 +2509,115 @@
                   ><input type="checkbox" id="scribe-settings-wysiwyg" />
                   所见即所得模式</label
                 >
+                <div
+                  style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                    margin-top: 4px;
+                  "
+                >
+                  <label
+                    for="scribe-settings-view-mode"
+                    style="font-size: 12px; font-weight: 600"
+                    >视图模式</label
+                  >
+                  <select
+                    id="scribe-settings-view-mode"
+                    aria-label="视图模式（设置）"
+                    style="width: 100%"
+                  >
+                    <option value="reading">阅读 — 仅预览</option>
+                    <option value="source">源码（分屏）</option>
+                    <option value="live">实时预览</option>
+                  </select>
+                  <p class="hint" id="scribe-settings-viewmode-hint">
+                    阅读：仅预览不可编辑。源码：分屏编辑。实时预览：覆盖层编辑。
+                  </p>
+                </div>
+                <div
+                  style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                    margin-top: 8px;
+                    border-top: var(--hairline) solid var(--scribe-border);
+                    padding-top: 12px;
+                  "
+                >
+                  <h4 style="font-size: 12px; font-weight: 600; margin: 0">
+                    格式化（已从工具栏移至此处）
+                  </h4>
+                  <p class="hint">
+                    标题、表格、公式等格式化操作已收纳至设置与右键菜单，保持编辑器简洁。快捷键仍可用。
+                  </p>
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px">
+                    <button
+                      type="button"
+                      data-action="h1"
+                      class="scribe-settings__inline-btn"
+                      title="标题 1"
+                    >
+                      H1
+                    </button>
+                    <button
+                      type="button"
+                      data-action="h2"
+                      class="scribe-settings__inline-btn"
+                      title="标题 2"
+                    >
+                      H2
+                    </button>
+                    <button
+                      type="button"
+                      data-action="h3"
+                      class="scribe-settings__inline-btn"
+                      title="标题 3"
+                    >
+                      H3
+                    </button>
+                    <button
+                      type="button"
+                      data-action="quote"
+                      class="scribe-settings__inline-btn"
+                      title="引用"
+                    >
+                      ❝
+                    </button>
+                    <button
+                      type="button"
+                      data-action="codeBlock"
+                      class="scribe-settings__inline-btn"
+                      title="代码块"
+                    >
+                      { }
+                    </button>
+                    <button
+                      type="button"
+                      data-action="table"
+                      class="scribe-settings__inline-btn"
+                      title="表格"
+                    >
+                      ▦
+                    </button>
+                    <button
+                      type="button"
+                      data-action="math"
+                      class="scribe-settings__inline-btn"
+                      title="行内公式"
+                    >
+                      ∑
+                    </button>
+                    <button
+                      type="button"
+                      data-action="mathBlock"
+                      class="scribe-settings__inline-btn"
+                      title="公式块"
+                    >
+                      $$
+                    </button>
+                  </div>
+                </div>
                 <p class="hint" id="scribe-settings-editor-hint">
                   实时预览关闭时需手动刷新。所见即所得为 Typora 风格单栏编辑。
                 </p>

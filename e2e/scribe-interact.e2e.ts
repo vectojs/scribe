@@ -42,7 +42,7 @@ test.describe('scribe interact fixes', () => {
       };
       // Ensure source mode
       const vm = (window as unknown as { __scribeViewMode?: () => string }).__scribeViewMode?.();
-      if (vm === 'wysiwyg') {
+      if (vm === 'wysiwyg' || vm === 'live') {
         (
           window as unknown as { __scribeApplyViewMode?: (m: string) => void }
         ).__scribeApplyViewMode?.('source');
