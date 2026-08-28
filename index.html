@@ -35,6 +35,7 @@
         --hairline: 1px;
         --scribe-bg: #f7f4ee;
         --scribe-pane-bg: #fffdf9;
+        --scribe-sidebar-bg: #f5f3ef;
         --scribe-border: #e5ddd3;
         --scribe-fg: #1a1a1a;
         --scribe-muted: #6b6256;
@@ -63,6 +64,7 @@
       html[data-theme="dark"] {
         --scribe-bg: #0f1115;
         --scribe-pane-bg: #1a1e24;
+        --scribe-sidebar-bg: #1e232b;
         --scribe-border: #2a2f3a;
         --scribe-fg: #e6e2de;
         --scribe-muted: #9aa0a8;
@@ -143,6 +145,8 @@
         border-radius: 8px;
         padding: 4px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+        width: auto !important;
+        max-width: none !important;
       }
 
       #scribe-ribbon.is-collapsed #scribe-ribbon-collapse {
@@ -513,7 +517,7 @@
         min-width: 220px;
         flex-shrink: 0;
         border-right: var(--hairline) solid var(--scribe-border);
-        background: var(--scribe-pane-bg);
+        background: var(--scribe-sidebar-bg);
         overflow-y: auto;
         overflow-x: hidden;
         padding: 12px 0;
@@ -576,7 +580,7 @@
         min-width: 240px;
         flex-shrink: 0;
         border-right: var(--hairline) solid var(--scribe-border);
-        background: var(--scribe-pane-bg);
+        background: var(--scribe-sidebar-bg);
         overflow-y: auto;
         overflow-x: hidden;
         padding: 12px 0;
@@ -1899,28 +1903,6 @@
               aria-controls="scribe-explorer"
             >
               ☰
-            </button>
-            <button
-              id="scribe-toggle-explorer"
-              class="scribe-icon-btn scribe-collapse-btn"
-              type="button"
-              aria-label="收起文件管理器"
-              aria-expanded="true"
-              aria-controls="scribe-explorer"
-              title="切换文件管理器（收起）"
-            >
-              ◀
-            </button>
-            <button
-              id="scribe-toggle-toc"
-              class="scribe-icon-btn scribe-collapse-btn"
-              type="button"
-              aria-label="收起大纲"
-              aria-expanded="true"
-              aria-controls="scribe-toc"
-              title="切换大纲"
-            >
-              ☷
             </button>
             <h1>Scribe</h1>
             <span id="scribe-file-name" aria-live="polite">未命名.md</span>
