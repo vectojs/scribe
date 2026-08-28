@@ -149,6 +149,7 @@ export function showContextMenu(opts: ShowOptions): void {
   el.style.top = `${Math.round(top)}px`;
 
   const onClickOutside = (e: MouseEvent): void => {
+    if ((e as MouseEvent).button === 2) return;
     const target = e.target as Node | null;
     if (!target) return;
     if (el.contains(target)) return;
