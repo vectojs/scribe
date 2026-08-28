@@ -127,23 +127,21 @@ test.describe('scribe responsive — viewport×DPR matrix', () => {
           }
         }
 
-        // 3) Explorer/toc drawers overlay correctly at <900
+        // 3) Sidebar drawer overlay correctly at <900 - right side purely editor+preview centered
         const drawer = await page.evaluate(() => {
-          const explorer = document.getElementById('scribe-explorer') as HTMLElement | null;
-          const toc = document.getElementById('scribe-toc') as HTMLElement | null;
+          const sidebar = document.getElementById('scribe-sidebar') as HTMLElement | null;
           const settings = document.getElementById('scribe-settings') as HTMLElement | null;
           const backdrop = document.getElementById('scribe-backdrop') as HTMLElement | null;
           const stage = document.getElementById('scribe-stage') as HTMLElement | null;
-          if (!explorer || !stage) return null;
-          const exStyle = window.getComputedStyle(explorer);
-          const tocStyle = toc ? window.getComputedStyle(toc) : null;
+          if (!sidebar || !stage) return null;
+          const sbStyle = window.getComputedStyle(sidebar);
           const stStyle = settings ? window.getComputedStyle(settings) : null;
           return {
-            exPosition: exStyle.position,
-            exTransform: exStyle.transform,
-            exVisible: exStyle.display !== 'none',
-            tocPosition: tocStyle?.position ?? 'none',
-            tocTransform: tocStyle?.transform ?? 'none',
+            exPosition: sbStyle.position,
+            exTransform: sbStyle.transform,
+            exVisible: sbStyle.display !== 'none',
+            sbPosition: sbStyle.position,
+            sbTransform: sbStyle.transform,
             stPosition: stStyle?.position ?? 'none',
             stTransform: stStyle?.transform ?? 'none',
             stageTouch: window.getComputedStyle(stage).touchAction,
@@ -154,7 +152,7 @@ test.describe('scribe responsive — viewport×DPR matrix', () => {
         expect(drawer).not.toBeNull();
         if (drawer) {
           if (isOverlay) {
-            // Overlay mode: explorer/toc should be fixed off-screen
+            // Overlay mode: sidebar should be fixed off-screen
             expect(drawer.exPosition).toBe('fixed');
             // transform should be translateX(-100%) when closed (not is-open)
             expect(drawer.exVisible).toBeTruthy(); // fixed element still considered visible via display, but off-screen
@@ -162,11 +160,18 @@ test.describe('scribe responsive — viewport×DPR matrix', () => {
             expect(drawer.stageTouch).toContain('pan-y');
             // Backdrop should be hidden initially (no drawer open)
             expect(drawer.backdropHidden).toBeTruthy();
+            // Sidebar toc is inside left drawer, not right - right side purely editor+preview centered
+            const isTocInSidebar = await page.evaluate(
+              () =>
+                document.getElementById('scribe-toc')?.classList.contains('scribe-sidebar__pane') ??
+                false,
+            );
+            expect(isTocInSidebar).toBeTruthy();
           } else {
             // Desktop: inline, not fixed, no transform overlay
             expect(drawer.exPosition).not.toBe('fixed');
           }
-          // settings drawer at overlay should be fixed right side
+          // settings modal at overlay should be fixed
           if (isOverlay && drawer.stPosition !== 'none') {
             expect(drawer.stPosition).toBe('fixed');
           }
@@ -178,16 +183,16 @@ test.describe('scribe responsive — viewport×DPR matrix', () => {
           await expect(page.locator('#scribe-backdrop')).toBeHidden({
             timeout: 2000,
           });
-          // Open explorer via hamburger
+          // Open sidebar via hamburger (left drawer now unified)
           await page.locator('#scribe-menu-toggle').click();
           await page.waitForTimeout(250);
           const afterOpen = await page.evaluate(() => {
-            const ex = document.getElementById('scribe-explorer') as HTMLElement | null;
+            const sb = document.getElementById('scribe-sidebar') as HTMLElement | null;
             const bd = document.getElementById('scribe-backdrop') as HTMLElement | null;
-            if (!ex || !bd) return null;
+            if (!sb || !bd) return null;
             return {
-              hasOpen: ex.classList.contains('is-open'),
-              transform: window.getComputedStyle(ex).transform,
+              hasOpen: sb.classList.contains('is-open'),
+              transform: window.getComputedStyle(sb).transform,
               backdropHidden: bd.hidden,
               bodyOverflow: document.body.style.overflow,
               ariaExpanded: document
@@ -202,14 +207,14 @@ test.describe('scribe responsive — viewport×DPR matrix', () => {
           await expect(page.locator('#scribe-backdrop')).toBeVisible({
             timeout: 2000,
           });
-          // Click backdrop outside drawer (right side) to avoid explorer intercept at 390 (78vw)
+          // Click backdrop outside drawer (right side) to avoid sidebar intercept at 390 (78vw)
           await page.locator('#scribe-backdrop').click({ position: { x: 350, y: 200 } });
           await page.waitForTimeout(250);
           const afterClose = await page.evaluate(() => {
-            const ex = document.getElementById('scribe-explorer') as HTMLElement | null;
+            const sb = document.getElementById('scribe-sidebar') as HTMLElement | null;
             const bd = document.getElementById('scribe-backdrop') as HTMLElement | null;
             return {
-              hasOpen: ex?.classList.contains('is-open') ?? false,
+              hasOpen: sb?.classList.contains('is-open') ?? false,
               backdropHidden: bd?.hidden ?? true,
               ariaExpanded: document
                 .getElementById('scribe-menu-toggle')
@@ -225,8 +230,7 @@ test.describe('scribe responsive — viewport×DPR matrix', () => {
           await page.keyboard.press('Escape');
           await page.waitForTimeout(200);
           const afterEsc = await page.evaluate(
-            () =>
-              document.getElementById('scribe-explorer')?.classList.contains('is-open') ?? false,
+            () => document.getElementById('scribe-sidebar')?.classList.contains('is-open') ?? false,
           );
           expect(afterEsc).toBeFalsy();
         }
@@ -239,10 +243,10 @@ test.describe('scribe responsive — viewport×DPR matrix', () => {
           if (!stage || !a11y) return null;
           const stageTouch = window.getComputedStyle(stage).touchAction;
           const overlayTouch = window.getComputedStyle(a11y).pointerEvents;
-          // Check explorer has touch scrolling containment
-          const explorer = document.getElementById('scribe-explorer') as HTMLElement | null;
-          const exOverscroll = explorer
-            ? window.getComputedStyle(explorer).overscrollBehavior
+          // Check sidebar has touch scrolling containment
+          const sidebar = document.getElementById('scribe-sidebar') as HTMLElement | null;
+          const exOverscroll = sidebar
+            ? window.getComputedStyle(sidebar).overscrollBehavior
             : 'auto';
           return {
             stageTouch,

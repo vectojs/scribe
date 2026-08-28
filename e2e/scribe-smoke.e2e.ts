@@ -4,12 +4,20 @@ test.describe('scribe smoke', () => {
   test('open editor, type markdown with math/table, preview + TOC + export', async ({ page }) => {
     await page.goto('/');
 
-    // Shell visible
+    // Shell visible - sidebar drawer with tabs, right is purely editor+preview centered
     await expect(page.locator('#scribe-toolbar')).toBeVisible();
+    await expect(page.locator('#scribe-sidebar')).toBeVisible();
     await expect(page.locator('#scribe-explorer')).toBeVisible();
-    await expect(page.locator('#scribe-toc')).toBeVisible();
+    // Outline is now a tab inside left drawer, hidden until switched
+    await expect(page.locator('#scribe-sidebar-tab-files')).toBeVisible();
+    await expect(page.locator('#scribe-sidebar-tab-outline')).toBeVisible();
+    await expect(page.locator('#scribe-toc')).toBeHidden();
     await expect(page.locator('#scribe-canvas')).toBeVisible();
     await expect(page.locator('#scribe-a11y-root')).toBeAttached();
+    // Lucide fine-line icons: ribbon SVGs stroke 1.5 - ensure SVG not emoji
+    const ribbonFilesSvg = page.locator('#scribe-ribbon-files svg');
+    await expect(ribbonFilesSvg).toBeVisible();
+    await expect(ribbonFilesSvg).toHaveAttribute('viewBox', '0 0 24 24');
 
     // window.__app hook (hybrid contract)
     await page.waitForFunction(
@@ -148,6 +156,10 @@ test.describe('scribe smoke', () => {
     expect(previewChecks.markdownHeight).toBeGreaterThan(100);
     expect(previewChecks.previewHeight).toBeGreaterThan(100);
 
+    // Activate Outline tab to reveal TOC (now left drawer tab, right side purely editor)
+    await page.locator('#scribe-sidebar-tab-outline').click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('#scribe-toc')).toBeVisible();
     // Verify TOC clickable: should list Smoke Test, Section One, Section Two
     const toc = page.locator('#scribe-toc-list');
     await expect(toc).toBeVisible();
@@ -289,7 +301,9 @@ test.describe('scribe smoke', () => {
       return w.__app.markdown.height > 500;
     });
     expect(ok).toBeTruthy();
-    // TOC should still have many entries
+    // TOC should still have many entries (activate outline tab first)
+    await page.locator('#scribe-sidebar-tab-outline').click();
+    await page.waitForTimeout(300);
     const tocCount = await page.locator('#scribe-toc-list a').count();
     expect(tocCount).toBeGreaterThan(50);
   });

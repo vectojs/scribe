@@ -220,17 +220,18 @@ function mountScribe(): void {
     // ignore storage errors
   }
 
-  // ── Collapsible explorer / TOC (CTX-0539) ────────────────────────────────
-  const EXPLORER_COLLAPSED_KEY = 'scribe:explorer-collapsed-v1';
-  const TOC_COLLAPSED_KEY = 'scribe:toc-collapsed-v1';
+  // ── Sidebar: unified left drawer with Files/Outline tabs (Obsidian) ────────
+  const SIDEBAR_COLLAPSED_KEY = 'scribe:sidebar-collapsed-v1';
+  const SIDEBAR_TAB_KEY = 'scribe:sidebar-tab-v1';
+  type SidebarTab = 'files' | 'outline';
+  const sidebarEl = document.getElementById('scribe-sidebar') as HTMLElement | null;
+  const sidebarTabFilesBtn = document.getElementById(
+    'scribe-sidebar-tab-files',
+  ) as HTMLButtonElement | null;
+  const sidebarTabOutlineBtn = document.getElementById(
+    'scribe-sidebar-tab-outline',
+  ) as HTMLButtonElement | null;
 
-  const readCollapsed = (key: string): boolean => {
-    try {
-      return window.localStorage.getItem(key) === 'true';
-    } catch {
-      return false;
-    }
-  };
   const writeCollapsed = (key: string, value: boolean): void => {
     try {
       window.localStorage.setItem(key, String(value));
@@ -239,12 +240,78 @@ function mountScribe(): void {
     }
   };
 
-  const applyExplorerCollapsed = (collapsed: boolean): void => {
-    if (!explorerNav) return;
-    explorerNav.classList.toggle('is-collapsed', collapsed);
+  const getStoredSidebarTab = (): SidebarTab => {
+    try {
+      const raw = window.localStorage.getItem(SIDEBAR_TAB_KEY);
+      if (raw === 'outline' || raw === 'files') return raw;
+    } catch {
+      // ignore
+    }
+    return 'files';
+  };
+  let activeSidebarTab: SidebarTab = getStoredSidebarTab();
+
+  const applySidebarTab = (tab: SidebarTab): void => {
+    activeSidebarTab = tab;
+    try {
+      window.localStorage.setItem(SIDEBAR_TAB_KEY, tab);
+    } catch {
+      // ignore
+    }
+    const isFiles = tab === 'files';
+    if (sidebarTabFilesBtn) {
+      sidebarTabFilesBtn.classList.toggle('is-active', isFiles);
+      sidebarTabFilesBtn.setAttribute('aria-selected', String(isFiles));
+      sidebarTabFilesBtn.setAttribute('tabindex', isFiles ? '0' : '-1');
+    }
+    if (sidebarTabOutlineBtn) {
+      sidebarTabOutlineBtn.classList.toggle('is-active', !isFiles);
+      sidebarTabOutlineBtn.setAttribute('aria-selected', String(!isFiles));
+      sidebarTabOutlineBtn.setAttribute('tabindex', !isFiles ? '0' : '-1');
+    }
+    if (explorerNav) {
+      if (isFiles) {
+        explorerNav.removeAttribute('hidden');
+        explorerNav.classList.add('is-active');
+        explorerNav.setAttribute('aria-hidden', 'false');
+      } else {
+        explorerNav.setAttribute('hidden', '');
+        explorerNav.classList.remove('is-active');
+        explorerNav.setAttribute('aria-hidden', 'true');
+      }
+    }
+    if (tocNav) {
+      if (!isFiles) {
+        tocNav.removeAttribute('hidden');
+        tocNav.classList.add('is-active');
+        tocNav.setAttribute('aria-hidden', 'false');
+      } else {
+        tocNav.setAttribute('hidden', '');
+        tocNav.classList.remove('is-active');
+        tocNav.setAttribute('aria-hidden', 'true');
+      }
+    }
+    // Ribbon active state mirrors sidebar tab when expanded
+    const sidebarCollapsedNow = sidebarEl?.classList.contains('is-collapsed') ?? false;
+    if (ribbonFilesBtn) {
+      const isActive = !sidebarCollapsedNow && isFiles;
+      ribbonFilesBtn.classList.toggle('is-active', isActive);
+      ribbonFilesBtn.setAttribute('aria-pressed', String(isActive));
+    }
+    if (ribbonTocBtn) {
+      const isActive = !sidebarCollapsedNow && !isFiles;
+      ribbonTocBtn.classList.toggle('is-active', isActive);
+      ribbonTocBtn.setAttribute('aria-pressed', String(isActive));
+    }
+  };
+
+  const applySidebarCollapsed = (collapsed: boolean): void => {
+    if (!sidebarEl) return;
+    sidebarEl.classList.toggle('is-collapsed', collapsed);
+    // Header toggles reflect overall collapsed state
     if (toggleExplorerBtn) {
       toggleExplorerBtn.setAttribute('aria-expanded', String(!collapsed));
-      toggleExplorerBtn.textContent = collapsed ? '▶' : '◀';
+      // Keep icon static; tooltip reflects action
       toggleExplorerBtn.setAttribute(
         'aria-label',
         collapsed ? t('header.expand.explorer') : t('header.collapse.explorer'),
@@ -253,45 +320,62 @@ function mountScribe(): void {
         ? t('header.expand.explorer')
         : t('header.collapse.explorer');
     }
-    if (ribbonFilesBtn) {
-      ribbonFilesBtn.setAttribute('aria-pressed', String(!collapsed));
-      ribbonFilesBtn.classList.toggle('is-active', !collapsed);
-      ribbonFilesBtn.setAttribute(
-        'aria-label',
-        collapsed ? t('header.expand.explorer') : t('header.collapse.explorer'),
-      );
-      ribbonFilesBtn.title = collapsed
-        ? t('header.expand.explorer')
-        : t('header.collapse.explorer');
-    }
-  };
-  const applyTocCollapsed = (collapsed: boolean): void => {
-    if (!tocNav) return;
-    tocNav.classList.toggle('is-collapsed', collapsed);
     if (toggleTocBtn) {
       toggleTocBtn.setAttribute('aria-expanded', String(!collapsed));
-      toggleTocBtn.textContent = collapsed ? '▶' : '☷';
       toggleTocBtn.setAttribute(
         'aria-label',
         collapsed ? t('header.expand.outline') : t('header.collapse.outline'),
       );
       toggleTocBtn.title = collapsed ? t('header.expand.outline') : t('header.collapse.outline');
     }
+    // Ribbon button active state depends on collapsed + tab
+    const isFiles = activeSidebarTab === 'files';
+    if (ribbonFilesBtn) {
+      const isActive = !collapsed && isFiles;
+      ribbonFilesBtn.classList.toggle('is-active', isActive);
+      ribbonFilesBtn.setAttribute('aria-pressed', String(isActive));
+    }
     if (ribbonTocBtn) {
-      ribbonTocBtn.setAttribute('aria-pressed', String(!collapsed));
-      ribbonTocBtn.classList.toggle('is-active', !collapsed);
-      ribbonTocBtn.setAttribute(
-        'aria-label',
-        collapsed ? t('header.expand.outline') : t('header.collapse.outline'),
-      );
-      ribbonTocBtn.title = collapsed ? t('header.expand.outline') : t('header.collapse.outline');
+      const isActive = !collapsed && !isFiles;
+      ribbonTocBtn.classList.toggle('is-active', isActive);
+      ribbonTocBtn.setAttribute('aria-pressed', String(isActive));
     }
   };
 
-  const explorerCollapsed = readCollapsed(EXPLORER_COLLAPSED_KEY);
-  const tocCollapsed = readCollapsed(TOC_COLLAPSED_KEY);
-  applyExplorerCollapsed(explorerCollapsed);
-  applyTocCollapsed(tocCollapsed);
+  // Migrate old keys if new not present
+  const sidebarCollapsedInit = (() => {
+    try {
+      const raw = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      if (raw !== null) return raw === 'true';
+      // migrate: if either old was true, start collapsed? Otherwise expanded
+      const oldExp = window.localStorage.getItem('scribe:explorer-collapsed-v1');
+      const oldToc = window.localStorage.getItem('scribe:toc-collapsed-v1');
+      if (oldExp === 'true' || oldToc === 'true') return true;
+      return false;
+    } catch {
+      return false;
+    }
+  })();
+  applySidebarTab(activeSidebarTab);
+  applySidebarCollapsed(sidebarCollapsedInit);
+
+  // Sidebar tab clicks
+  sidebarTabFilesBtn?.addEventListener('click', () => {
+    if (sidebarEl?.classList.contains('is-collapsed')) {
+      applySidebarCollapsed(false);
+      writeCollapsed(SIDEBAR_COLLAPSED_KEY, false);
+      window.dispatchEvent(new Event('resize'));
+    }
+    applySidebarTab('files');
+  });
+  sidebarTabOutlineBtn?.addEventListener('click', () => {
+    if (sidebarEl?.classList.contains('is-collapsed')) {
+      applySidebarCollapsed(false);
+      writeCollapsed(SIDEBAR_COLLAPSED_KEY, false);
+      window.dispatchEvent(new Event('resize'));
+    }
+    applySidebarTab('outline');
+  });
 
   // ── Ribbon collapsed (Obsidian-style: collapsible 48px bar, persists) ────────
   const RIBBON_COLLAPSED_KEY = 'scribe:ribbon-collapsed-v1';
@@ -327,127 +411,187 @@ function mountScribe(): void {
     window.dispatchEvent(new Event('resize'));
   });
 
-  // Collapse toggles — persist + re-apply. ResizeObserver on stage will reflow canvas when flex gives stage more width.
-  toggleExplorerBtn?.addEventListener('click', () => {
-    const now = !(explorerNav?.classList.contains('is-collapsed') ?? false);
-    applyExplorerCollapsed(now);
-    writeCollapsed(EXPLORER_COLLAPSED_KEY, now);
-    // Nudge layout even if ResizeObserver hasn't fired yet (desktop flex transition)
+  // Sidebar collapse toggles — unified. Header buttons control sidebar.
+  const handleSidebarToggle = (targetTab: SidebarTab): void => {
+    const isCollapsed = sidebarEl?.classList.contains('is-collapsed') ?? false;
+    if (isCollapsed) {
+      applySidebarCollapsed(false);
+      writeCollapsed(SIDEBAR_COLLAPSED_KEY, false);
+      applySidebarTab(targetTab);
+      window.dispatchEvent(new Event('resize'));
+      return;
+    }
+    // If expanded but on different tab, just switch tab
+    if (activeSidebarTab !== targetTab) {
+      applySidebarTab(targetTab);
+      return;
+    }
+    // Same tab and expanded -> collapse
+    applySidebarCollapsed(true);
+    writeCollapsed(SIDEBAR_COLLAPSED_KEY, true);
     window.dispatchEvent(new Event('resize'));
-  });
-  toggleTocBtn?.addEventListener('click', () => {
-    const now = !(tocNav?.classList.contains('is-collapsed') ?? false);
-    applyTocCollapsed(now);
-    writeCollapsed(TOC_COLLAPSED_KEY, now);
-    window.dispatchEvent(new Event('resize'));
-  });
+  };
+  toggleExplorerBtn?.addEventListener('click', () => handleSidebarToggle('files'));
+  toggleTocBtn?.addEventListener('click', () => handleSidebarToggle('outline'));
 
-  // ── Ribbon wiring: Files / Search / TOC / New → explorer / toc / settings ──
+  // ── Ribbon wiring: Files / Search / Outline / New → sidebar tabs ───────
   const isOverlayForRibbon = (): boolean => window.innerWidth < 900;
   const toggleExplorerForRibbon = (): void => {
     if (isOverlayForRibbon()) {
-      const willOpen = !(explorerNav?.classList.contains('is-open') ?? false);
-      explorerNav?.classList.toggle('is-open', willOpen);
-      if (willOpen && window.innerWidth < 640) tocNav?.classList.remove('is-open');
-      // sync backdrop/aria via helper if available (syncDrawerA11y defined later) — fallback:
-      const backdropEl = document.getElementById('scribe-backdrop') as HTMLElement | null;
-      if (backdropEl) backdropEl.hidden = !(explorerNav?.classList.contains('is-open') ?? false);
-      if (willOpen) document.body.style.overflow = 'hidden';
-      else if (!(tocNav?.classList.contains('is-open') ?? false)) document.body.style.overflow = '';
-      // Update aria
-      const menuToggleEl2 = document.getElementById(
-        'scribe-menu-toggle',
-      ) as HTMLButtonElement | null;
-      if (menuToggleEl2) menuToggleEl2.setAttribute('aria-expanded', String(willOpen));
+      const isOpen = sidebarEl?.classList.contains('is-open') ?? false;
+      const willOpen = !isOpen;
+      if (willOpen) {
+        applySidebarTab('files');
+        sidebarEl?.classList.add('is-open');
+        const backdropEl = document.getElementById('scribe-backdrop') as HTMLElement | null;
+        if (backdropEl) backdropEl.hidden = false;
+        document.body.style.overflow = 'hidden';
+        const menuToggleEl2 = document.getElementById(
+          'scribe-menu-toggle',
+        ) as HTMLButtonElement | null;
+        if (menuToggleEl2) menuToggleEl2.setAttribute('aria-expanded', 'true');
+      } else {
+        // if already open and on files tab, close; otherwise switch to files without closing
+        if (activeSidebarTab === 'files') {
+          sidebarEl?.classList.remove('is-open');
+          const backdropEl = document.getElementById('scribe-backdrop') as HTMLElement | null;
+          if (backdropEl) backdropEl.hidden = true;
+          document.body.style.overflow = '';
+          const menuToggleEl2 = document.getElementById(
+            'scribe-menu-toggle',
+          ) as HTMLButtonElement | null;
+          if (menuToggleEl2) menuToggleEl2.setAttribute('aria-expanded', 'false');
+        } else {
+          applySidebarTab('files');
+        }
+      }
     } else {
-      const now = !(explorerNav?.classList.contains('is-collapsed') ?? false);
-      applyExplorerCollapsed(now);
-      writeCollapsed(EXPLORER_COLLAPSED_KEY, now);
+      const isCollapsed = sidebarEl?.classList.contains('is-collapsed') ?? false;
+      if (isCollapsed) {
+        applySidebarCollapsed(false);
+        writeCollapsed(SIDEBAR_COLLAPSED_KEY, false);
+        applySidebarTab('files');
+      } else if (activeSidebarTab !== 'files') {
+        applySidebarTab('files');
+      } else {
+        applySidebarCollapsed(true);
+        writeCollapsed(SIDEBAR_COLLAPSED_KEY, true);
+      }
       window.dispatchEvent(new Event('resize'));
     }
   };
   const toggleTocForRibbon = (): void => {
     if (isOverlayForRibbon()) {
-      const willOpen = !(tocNav?.classList.contains('is-open') ?? false);
-      tocNav?.classList.toggle('is-open', willOpen);
-      if (willOpen && window.innerWidth < 640) explorerNav?.classList.remove('is-open');
-      const backdropEl = document.getElementById('scribe-backdrop') as HTMLElement | null;
-      const anyOpen =
-        (explorerNav?.classList.contains('is-open') ?? false) ||
-        (tocNav?.classList.contains('is-open') ?? false);
-      if (backdropEl) backdropEl.hidden = !anyOpen;
-      document.body.style.overflow = anyOpen ? 'hidden' : '';
-      const menuToggleEl2 = document.getElementById(
-        'scribe-menu-toggle',
-      ) as HTMLButtonElement | null;
-      if (menuToggleEl2) menuToggleEl2.setAttribute('aria-expanded', String(anyOpen));
+      const isOpen = sidebarEl?.classList.contains('is-open') ?? false;
+      const willOpen = !isOpen;
+      if (willOpen) {
+        applySidebarTab('outline');
+        sidebarEl?.classList.add('is-open');
+        const backdropEl = document.getElementById('scribe-backdrop') as HTMLElement | null;
+        if (backdropEl) backdropEl.hidden = false;
+        document.body.style.overflow = 'hidden';
+        const menuToggleEl2 = document.getElementById(
+          'scribe-menu-toggle',
+        ) as HTMLButtonElement | null;
+        if (menuToggleEl2) menuToggleEl2.setAttribute('aria-expanded', 'true');
+      } else {
+        if (activeSidebarTab === 'outline') {
+          sidebarEl?.classList.remove('is-open');
+          const backdropEl = document.getElementById('scribe-backdrop') as HTMLElement | null;
+          if (backdropEl) backdropEl.hidden = true;
+          document.body.style.overflow = '';
+          const menuToggleEl2 = document.getElementById(
+            'scribe-menu-toggle',
+          ) as HTMLButtonElement | null;
+          if (menuToggleEl2) menuToggleEl2.setAttribute('aria-expanded', 'false');
+        } else {
+          applySidebarTab('outline');
+        }
+      }
     } else {
-      const now = !(tocNav?.classList.contains('is-collapsed') ?? false);
-      applyTocCollapsed(now);
-      writeCollapsed(TOC_COLLAPSED_KEY, now);
+      const isCollapsed = sidebarEl?.classList.contains('is-collapsed') ?? false;
+      if (isCollapsed) {
+        applySidebarCollapsed(false);
+        writeCollapsed(SIDEBAR_COLLAPSED_KEY, false);
+        applySidebarTab('outline');
+      } else if (activeSidebarTab !== 'outline') {
+        applySidebarTab('outline');
+      } else {
+        applySidebarCollapsed(true);
+        writeCollapsed(SIDEBAR_COLLAPSED_KEY, true);
+      }
       window.dispatchEvent(new Event('resize'));
     }
   };
   ribbonFilesBtn?.addEventListener('click', toggleExplorerForRibbon);
   ribbonTocBtn?.addEventListener('click', toggleTocForRibbon);
   ribbonSearchBtn?.addEventListener('click', () => {
-    // Search is placeholder (no dedicated search UI yet) — focus explorer and ensure visible.
-    // In overlay: open explorer drawer; on desktop: expand if collapsed.
+    // Search is placeholder — flash sidebar to indicate not yet implemented.
     if (isOverlayForRibbon()) {
-      if (!(explorerNav?.classList.contains('is-open') ?? false)) toggleExplorerForRibbon();
-      // flash explorer border to indicate placeholder
-      if (explorerNav) {
-        explorerNav.style.transition = 'box-shadow 200ms';
-        explorerNav.style.boxShadow = 'inset 0 0 0 2px var(--scribe-accent)';
+      const isOpen = sidebarEl?.classList.contains('is-open') ?? false;
+      if (!isOpen) {
+        applySidebarTab('files');
+        sidebarEl?.classList.add('is-open');
+        const bdEl = document.getElementById('scribe-backdrop') as HTMLElement | null;
+        if (bdEl) bdEl.hidden = false;
+        document.body.style.overflow = 'hidden';
+      } else if (activeSidebarTab !== 'files') {
+        applySidebarTab('files');
+      }
+      const target = sidebarEl ?? explorerNav;
+      if (target) {
+        target.style.transition = 'box-shadow 200ms';
+        target.style.boxShadow = 'inset 0 0 0 2px var(--scribe-accent)';
         window.setTimeout(() => {
-          if (explorerNav) explorerNav.style.boxShadow = '';
+          if (target) target.style.boxShadow = '';
         }, 600);
       }
     } else {
-      if (explorerNav?.classList.contains('is-collapsed')) {
-        applyExplorerCollapsed(false);
-        writeCollapsed(EXPLORER_COLLAPSED_KEY, false);
+      if (sidebarEl?.classList.contains('is-collapsed')) {
+        applySidebarCollapsed(false);
+        writeCollapsed(SIDEBAR_COLLAPSED_KEY, false);
+        applySidebarTab('files');
         window.dispatchEvent(new Event('resize'));
+      } else if (activeSidebarTab !== 'files') {
+        applySidebarTab('files');
       }
-      // same flash
-      if (explorerNav) {
-        explorerNav.style.transition = 'box-shadow 200ms';
-        explorerNav.style.boxShadow = 'inset 0 0 0 2px var(--scribe-accent)';
+      const target = sidebarEl ?? explorerNav;
+      if (target) {
+        target.style.transition = 'box-shadow 200ms';
+        target.style.boxShadow = 'inset 0 0 0 2px var(--scribe-accent)';
         window.setTimeout(() => {
-          if (explorerNav) explorerNav.style.boxShadow = '';
+          if (target) target.style.boxShadow = '';
         }, 600);
       }
     }
   });
   ribbonNewBtn?.addEventListener('click', () => {
     try {
-      // Prefer clicking the explorer's + button if it exists (handles model + storage + rerender)
-      // The first button in explorerNav header is the add button (textContent === '+')
+      // Prefer clicking the explorer's add button (aria-label based, SVG now)
       const addBtn = explorerNav
-        ? (Array.from(explorerNav.querySelectorAll('button')).find(
-            (b) => b.textContent === '+',
-          ) as HTMLButtonElement | null)
+        ? ((Array.from(explorerNav.querySelectorAll('button')).find(
+            (b) => b.getAttribute('aria-label') === t('explorer.newFile.label'),
+          ) as HTMLButtonElement | null) ??
+          (explorerNav.querySelector('button') as HTMLButtonElement | null))
         : null;
       if (addBtn) {
         addBtn.click();
-        // Ensure explorer visible
         if (isOverlayForRibbon()) {
-          if (!(explorerNav?.classList.contains('is-open') ?? false)) {
-            explorerNav?.classList.add('is-open');
-            const bd2 = document.getElementById('scribe-backdrop') as HTMLElement | null;
-            if (bd2) bd2.hidden = false;
-            document.body.style.overflow = 'hidden';
-          }
+          applySidebarTab('files');
+          sidebarEl?.classList.add('is-open');
+          const bd2 = document.getElementById('scribe-backdrop') as HTMLElement | null;
+          if (bd2) bd2.hidden = false;
+          document.body.style.overflow = 'hidden';
         } else {
-          if (explorerNav?.classList.contains('is-collapsed')) {
-            applyExplorerCollapsed(false);
-            writeCollapsed(EXPLORER_COLLAPSED_KEY, false);
+          if (sidebarEl?.classList.contains('is-collapsed')) {
+            applySidebarCollapsed(false);
+            writeCollapsed(SIDEBAR_COLLAPSED_KEY, false);
             window.dispatchEvent(new Event('resize'));
           }
+          applySidebarTab('files');
         }
         return;
       }
-      // Fallback: direct model push if explorer not yet mounted
       const pattern = t('files.untitledPattern');
       const suffix = String(Date.now() % 1000);
       const name = pattern.includes('{n}')
@@ -456,17 +600,20 @@ function mountScribe(): void {
       const entry = model.addFile(name, `# ${name.replace('.md', '')}\n\n`);
       saveDocumentWithStorage(model, window.localStorage);
       if (isOverlayForRibbon()) {
-        explorerNav?.classList.add('is-open');
+        applySidebarTab('files');
+        sidebarEl?.classList.add('is-open');
         const bd = document.getElementById('scribe-backdrop') as HTMLElement | null;
         if (bd) bd.hidden = false;
         document.body.style.overflow = 'hidden';
-      } else if (explorerNav?.classList.contains('is-collapsed')) {
-        applyExplorerCollapsed(false);
-        writeCollapsed(EXPLORER_COLLAPSED_KEY, false);
-        window.dispatchEvent(new Event('resize'));
+      } else {
+        if (sidebarEl?.classList.contains('is-collapsed')) {
+          applySidebarCollapsed(false);
+          writeCollapsed(SIDEBAR_COLLAPSED_KEY, false);
+          window.dispatchEvent(new Event('resize'));
+        }
+        applySidebarTab('files');
       }
       void entry;
-      // Trigger a rerender via resize; actual editor sync will happen on next mountExplorer callback if available
       window.dispatchEvent(new Event('resize'));
     } catch {
       // ignore
@@ -1311,28 +1458,51 @@ function mountScribe(): void {
     }
     // wysiwyg/focus toggles already handled in updateWysiwygChrome, but ensure sync
     updateWysiwygChrome(viewMode as any);
-    // collapsed buttons aria
-    const explorerCollapsedNow = explorerNav?.classList.contains('is-collapsed') ?? false;
+    // collapsed buttons aria (unified sidebar)
+    const sidebarCollapsedNowAria = sidebarEl?.classList.contains('is-collapsed') ?? false;
     if (toggleExplorerBtn) {
       toggleExplorerBtn.setAttribute(
         'aria-label',
-        explorerCollapsedNow
+        sidebarCollapsedNowAria
           ? t('header.expand.explorer', locale)
           : t('header.collapse.explorer', locale),
       );
-      toggleExplorerBtn.title = explorerCollapsedNow
+      toggleExplorerBtn.title = sidebarCollapsedNowAria
         ? t('header.expand.explorer', locale)
         : t('header.collapse.explorer', locale);
     }
-    const tocCollapsedNow = tocNav?.classList.contains('is-collapsed') ?? false;
     if (toggleTocBtn) {
       toggleTocBtn.setAttribute(
         'aria-label',
-        tocCollapsedNow ? t('header.expand.outline', locale) : t('header.collapse.outline', locale),
+        sidebarCollapsedNowAria
+          ? t('header.expand.outline', locale)
+          : t('header.collapse.outline', locale),
       );
-      toggleTocBtn.title = tocCollapsedNow
+      toggleTocBtn.title = sidebarCollapsedNowAria
         ? t('header.expand.outline', locale)
         : t('header.collapse.outline', locale);
+    }
+    // Sidebar tab labels i18n
+    if (sidebarTabFilesBtn) {
+      const lbl = sidebarTabFilesBtn.querySelector('span');
+      if (lbl) lbl.textContent = t('explorer.title', locale);
+      sidebarTabFilesBtn.setAttribute('aria-label', t('explorer.title', locale));
+    }
+    if (sidebarTabOutlineBtn) {
+      const lbl2 = sidebarTabOutlineBtn.querySelector('span');
+      if (lbl2) lbl2.textContent = t('toc.title', locale);
+      sidebarTabOutlineBtn.setAttribute('aria-label', t('toc.title', locale));
+    }
+    // Also update ribbon labels for i18n
+    const ribbonFilesI18n2 = document.getElementById('scribe-ribbon-files') as HTMLElement | null;
+    if (ribbonFilesI18n2) {
+      ribbonFilesI18n2.setAttribute('aria-label', t('ribbon.files', locale));
+      ribbonFilesI18n2.title = t('ribbon.files', locale);
+    }
+    const ribbonTocI18n2 = document.getElementById('scribe-ribbon-toc') as HTMLElement | null;
+    if (ribbonTocI18n2) {
+      ribbonTocI18n2.setAttribute('aria-label', t('ribbon.outline', locale));
+      ribbonTocI18n2.title = t('ribbon.outline', locale);
     }
     const contextMenuEl = document.getElementById('scribe-context-menu') as HTMLElement | null;
     if (contextMenuEl) contextMenuEl.setAttribute('aria-label', t('context.menu.aria', locale));
@@ -2983,8 +3153,7 @@ function mountScribe(): void {
       // ignore
     }
     if (window.innerWidth < 900) {
-      explorerNav?.classList.remove('is-open');
-      tocNav?.classList.remove('is-open');
+      sidebarEl?.classList.remove('is-open');
       if (backdrop) backdrop.hidden = true;
       document.body.style.overflow = '';
     }
@@ -3023,8 +3192,7 @@ function mountScribe(): void {
         // ignore
       }
       if (window.innerWidth < 900) {
-        explorerNav?.classList.remove('is-open');
-        tocNav?.classList.remove('is-open');
+        sidebarEl?.classList.remove('is-open');
         if (backdrop) backdrop.hidden = true;
         document.body.style.overflow = '';
       }
@@ -3064,7 +3232,7 @@ function mountScribe(): void {
   updateChrome();
   updateToc();
 
-  // --- Responsive drawer logic (<900 overlay) — explorer/toc drawers; settings is modal (CTX-0543) ---
+  // --- Responsive drawer logic (<900 overlay) — sidebar drawer; settings is modal ---
   const isOverlay = (): boolean => window.innerWidth < 900;
 
   const isSettingsOpen = (): boolean => {
@@ -3085,11 +3253,10 @@ function mountScribe(): void {
   };
 
   const syncDrawerA11y = (): void => {
-    const explorerOpen = explorerNav?.classList.contains('is-open') ?? false;
-    const tocOpen = tocNav?.classList.contains('is-open') ?? false;
-    if (menuToggle) menuToggle.setAttribute('aria-expanded', String(explorerOpen || tocOpen));
+    const sidebarOpen = sidebarEl?.classList.contains('is-open') ?? false;
+    if (menuToggle) menuToggle.setAttribute('aria-expanded', String(sidebarOpen));
     if (settingsToggle) settingsToggle.setAttribute('aria-expanded', String(isSettingsOpen()));
-    const anyDrawerOpen = explorerOpen || tocOpen;
+    const anyDrawerOpen = sidebarOpen;
     if (backdrop) {
       backdrop.hidden = !anyDrawerOpen || !isOverlay();
       backdrop.setAttribute('aria-hidden', String(!anyDrawerOpen));
@@ -3103,24 +3270,23 @@ function mountScribe(): void {
   };
 
   const closeDrawers = (): void => {
-    explorerNav?.classList.remove('is-open');
-    tocNav?.classList.remove('is-open');
+    sidebarEl?.classList.remove('is-open');
     syncDrawerA11y();
   };
 
   const toggleExplorer = (): void => {
-    const willOpen = !(explorerNav?.classList.contains('is-open') ?? false);
-    explorerNav?.classList.toggle('is-open', willOpen);
-    if (willOpen && window.innerWidth < 640) {
-      tocNav?.classList.remove('is-open');
+    const willOpen = !(sidebarEl?.classList.contains('is-open') ?? false);
+    if (willOpen) {
+      // opening via hamburger defaults to files tab
+      if (sidebarEl) applySidebarTab('files');
     }
+    sidebarEl?.classList.toggle('is-open', willOpen);
     syncDrawerA11y();
   };
 
   const openSettings = (): void => {
     if (!settingsPanel) return;
-    explorerNav?.classList.remove('is-open');
-    tocNav?.classList.remove('is-open');
+    sidebarEl?.classList.remove('is-open');
     if (backdrop) backdrop.hidden = true;
     // restore last active tab before showing
     try {
@@ -3182,9 +3348,7 @@ function mountScribe(): void {
       }
     }
     settingsToggle?.setAttribute('aria-expanded', 'false');
-    const anyDrawerOpen =
-      (explorerNav?.classList.contains('is-open') ?? false) ||
-      (tocNav?.classList.contains('is-open') ?? false);
+    const anyDrawerOpen = sidebarEl?.classList.contains('is-open') ?? false;
     document.body.style.overflow = anyDrawerOpen && isOverlay() ? 'hidden' : '';
     syncDrawerA11y();
     settingsToggle?.focus();
@@ -3234,9 +3398,7 @@ function mountScribe(): void {
         closeSettings();
         return;
       }
-      const anyDrawerOpen =
-        (explorerNav?.classList.contains('is-open') ?? false) ||
-        (tocNav?.classList.contains('is-open') ?? false);
+      const anyDrawerOpen = sidebarEl?.classList.contains('is-open') ?? false;
       if (anyDrawerOpen) {
         closeDrawers();
         menuToggle?.focus();
