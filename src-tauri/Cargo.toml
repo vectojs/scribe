@@ -1,0 +1,30 @@
+[package]
+name = "scribe"
+version = "0.1.0"
+description = "Scribe desktop shell — Tauri wrapper for the VectoJS markdown editor"
+authors = ["vectojs"]
+license = "MIT"
+repository = "https://github.com/vectojs/scribe"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "scribe_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "scribe"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2", features = [] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+
+[dev-dependencies]
+tempfile = "3.10"

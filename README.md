@@ -16,13 +16,44 @@ StackEdit-inspired markdown editor built as a VectoJS forge. Hybrid shell: tradi
 
 ```bash
 bun install
-bun run dev        # http://localhost:3517
+bun run dev        # http://localhost:3517 (vite, web)
 bun run check      # format:check + lint + lint:md
 bun run test
-bun run build
+bun run build      # tsc && vite build → dist/
 ```
 
 Append `?debug` to attach `@vectojs/devtools` and expose `window.__app = { scene, model, markdown }`.
+
+### Desktop (Tauri v2)
+
+Prerequisites — see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/):
+
+```bash
+# CachyOS / Arch
+sudo pacman -S webkit2gtk-4.1 gtk3 base-devel openssl appmenu-gtk-module libappindicator-gtk3 librsvg
+
+# rustup + cargo already via rustup stable (1.77.2+); verify:
+cargo --version && rustc --version
+```
+
+Icons are generated from `public/pwa-*.png` into `src-tauri/icons/` (32x32, 128x128, 256, 512 + ico/icns) via `magick` or the `tauri icon` helper — do not hand-edit `src-tauri/icons/` without regenerating.
+
+```bash
+bun install                          # installs @tauri-apps/cli + @tauri-apps/api
+bun run tauri:dev                    # vite dev at http://localhost:3517 + Tauri window
+bun run tauri:build                  # vite build + cargo tauri build → src-tauri/target/release/bundle/
+cargo check --manifest-path src-tauri/Cargo.toml   # fast Rust check without bundling
+cargo test --manifest-path src-tauri/Cargo.toml    # Rust unit tests (greet, fs roundtrip)
+```
+
+`src-tauri/tauri.conf.json`:
+
+- `identifier: com.vectojs.scribe`
+- `build.frontendDist: ../dist`
+- `build.devUrl: http://localhost:3517`
+- `bundle.icon`: `icons/32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.png/.icns/.ico` (from `public/pwa-*.png`)
+
+Filesystem access uses `@tauri-apps/plugin-fs` + `@tauri-apps/plugin-dialog` (permissions in `src-tauri/capabilities/default.json` — `fs:allow-read-text-file`, `write-text-file`, `read-dir`, `dialog:allow-open/save`, `fs:scope **`). JS helpers in `src/utils/tauri.ts` (`openMarkdownFile`, `saveMarkdownFile`) fall back to Rust commands `read_markdown_file` / `write_markdown_file` via `invoke` when needed.
 
 ## Layout
 

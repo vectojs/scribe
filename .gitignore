@@ -11,3 +11,5 @@ node_modules/
 .worktrees/
 tmp/
 .playwright-cli/
+src-tauri/target/
+src-tauri/gen/
