@@ -174,8 +174,39 @@ export function showContextMenu(opts: ShowOptions): void {
       buttons[next].focus();
     }
   };
-  const onScrollOrResize = (): void => {
-    hideContextMenu();
+  const onResize = (): void => {
+    // Only hide if menu would be clipped after viewport change; keep during normal resize
+    // that still fits (prevents preview ScrollView sync triggering window resize hide).
+    try {
+      const rect2 = el.getBoundingClientRect();
+      const margin2 = 8;
+      const fits =
+        rect2.left >= margin2 &&
+        rect2.top >= margin2 &&
+        rect2.right + margin2 <= window.innerWidth &&
+        rect2.bottom + margin2 <= window.innerHeight &&
+        rect2.width > 0 &&
+        rect2.height > 0;
+      if (!fits) hideContextMenu();
+    } catch {
+      // ignore
+    }
+  };
+  const onScroll = (): void => {
+    // Do not hide on any scroll — preview ScrollView wheel sync bubbles as window scroll
+    // and would dismiss the menu instantly ("right-click disappears quickly").
+    // Only hide if menu is scrolled completely off-screen.
+    try {
+      const rect2 = el.getBoundingClientRect();
+      const offscreen =
+        rect2.bottom < 0 ||
+        rect2.top > window.innerHeight ||
+        rect2.right < 0 ||
+        rect2.left > window.innerWidth;
+      if (offscreen) hideContextMenu();
+    } catch {
+      // ignore
+    }
   };
   const onContextOutside = (e: MouseEvent): void => {
     const target = e.target as Node | null;
@@ -194,8 +225,8 @@ export function showContextMenu(opts: ShowOptions): void {
     document.addEventListener('click', onClickOutside);
     document.addEventListener('auxclick', onClickOutside as unknown as EventListener);
     document.addEventListener('keydown', onKeyDown);
-    window.addEventListener('resize', onScrollOrResize);
-    window.addEventListener('scroll', onScrollOrResize, true);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, true);
     document.addEventListener('contextmenu', onContextOutside);
   }, 0);
 
@@ -203,8 +234,8 @@ export function showContextMenu(opts: ShowOptions): void {
     document.removeEventListener('click', onClickOutside);
     document.removeEventListener('auxclick', onClickOutside as unknown as EventListener);
     document.removeEventListener('keydown', onKeyDown);
-    window.removeEventListener('resize', onScrollOrResize);
-    window.removeEventListener('scroll', onScrollOrResize, true);
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('scroll', onScroll, true);
     document.removeEventListener('contextmenu', onContextOutside);
   };
 

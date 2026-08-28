@@ -1614,10 +1614,13 @@ function mountScribe(): void {
       case 'list':
       case 'table':
       case 'hr':
-      case 'blockMath':
       case 'footnoteDef':
       case 'container':
         return true;
+      case 'blockMath':
+        // Display math $$...$$ is rendered as MathBlock preview; never overlay source
+        // (screenshot leak #scribe-inline-source showed $$/x^2/$$ floating over "Hello Scribe")
+        return false;
       default:
         return typeof (token as unknown as { text?: string }).text === 'string';
     }
@@ -1686,31 +1689,60 @@ function mountScribe(): void {
     blocks: SourceBlock[],
   ): { y: number; height: number } | null => {
     if (blockIdx < 0 || blockIdx >= blocks.length) return null;
-    // Try precise child entity position inside Markdown Stack
+    // Prefer line-box proportional mapping to avoid parallax drift when virtualized
+    // (markdown.content.children is windowed when virtualized, so indices drift —
+    // screenshot showed math overlay covering "Hello Scribe" due to child[blockIdx] mismatch).
+    const boxes = getMarkdownLineBoxes();
+    if (boxes.length > 0) {
+      if (blocks.length <= 1) {
+        const b = boxes[0];
+        return b ? { y: b.y, height: b.height } : null;
+      }
+      // Block-height-aware: map source start/end lines to preview boxes for accurate y/height
+      try {
+        const source = textArea.value ?? '';
+        const block = blocks[blockIdx];
+        if (block) {
+          const sourceLines = source.split('\n');
+          const lineCount = sourceLines.length;
+          const startLine = source.slice(0, block.start).split('\n').length - 1;
+          const endSlice = source.slice(0, block.end).replace(/\n+$/, '');
+          const endLine = endSlice.split('\n').length - 1;
+          if (lineCount > 1 && boxes.length > 1) {
+            const startRatio = Math.min(1, Math.max(0, startLine / Math.max(1, lineCount - 1)));
+            const endRatio = Math.min(1, Math.max(0, endLine / Math.max(1, lineCount - 1)));
+            const startIdx = Math.min(boxes.length - 1, Math.floor(startRatio * boxes.length));
+            const endIdx = Math.min(boxes.length - 1, Math.floor(endRatio * boxes.length));
+            const sBox = boxes[startIdx];
+            const eBox = boxes[endIdx];
+            if (sBox && eBox) {
+              const y = sBox.y;
+              const height = eBox.y + eBox.height - sBox.y;
+              if (height > 0) return { y, height };
+            }
+          }
+        }
+      } catch {
+        // fallback to blockIdx ratio
+      }
+      const ratio = Math.min(1, Math.max(0, blockIdx / Math.max(1, blocks.length - 1)));
+      const targetIdx = Math.min(boxes.length - 1, Math.floor(ratio * boxes.length));
+      const box = boxes[targetIdx];
+      return box ? { y: box.y, height: box.height } : null;
+    }
+    // Fallback to child entity when no line boxes (initial render before layout)
     try {
       const content = markdown.content as unknown as {
         children?: Array<{ y?: number; height?: number }>;
       };
       const child = content?.children?.[blockIdx];
       if (child && typeof child.y === 'number' && typeof child.height === 'number') {
-        // child.y is layout offset inside Markdown Stack; height is measured block height
-        // When virtualize off, this is exact. Return directly.
         if (child.height > 0) return { y: child.y ?? 0, height: child.height };
       }
     } catch {
       // ignore
     }
-    // Fallback to line-box proportional mapping
-    const boxes = getMarkdownLineBoxes();
-    if (boxes.length === 0) return null;
-    if (blocks.length <= 1) {
-      const b = boxes[0];
-      return b ? { y: b.y, height: b.height } : null;
-    }
-    const ratio = Math.min(1, Math.max(0, blockIdx / Math.max(1, blocks.length - 1)));
-    const targetIdx = Math.min(boxes.length - 1, Math.floor(ratio * boxes.length));
-    const box = boxes[targetIdx];
-    return box ? { y: box.y, height: box.height } : null;
+    return null;
   };
 
   // ── Inline WYSIWYG state (hoisted for layout) ──
@@ -2003,9 +2035,32 @@ function mountScribe(): void {
     updateWysiwygChrome(next);
     layout();
     // In WYSIWYG, preview is the editing surface — focus hidden source for typing
+    // Mirror is offscreen (TextArea at -10000) but must stay focused for input -> debouncedRender.
+    // Focus may be lost if button retains focus or if a11y textarea not yet projected (rAF timing).
     if (next === 'wysiwyg') {
-      const mirror = getMirrorTextarea();
-      if (mirror) mirror.focus();
+      const tryFocusMirror = (attempts = 0): void => {
+        const mirror = getMirrorTextarea();
+        if (mirror) {
+          mirror.focus();
+          // Ensure selection preserved at current caret (focusAtLine may have moved)
+          try {
+            const s = textArea.selectionStart ?? 0;
+            const e = textArea.selectionEnd ?? s;
+            if (mirror.selectionStart !== s || mirror.selectionEnd !== e) {
+              mirror.selectionStart = s;
+              mirror.selectionEnd = e;
+            }
+          } catch {
+            // ignore
+          }
+        } else if (attempts < 5) {
+          requestAnimationFrame(() => tryFocusMirror(attempts + 1));
+        }
+      };
+      tryFocusMirror();
+      // Fallback timer for browsers that defer a11y projection
+      window.setTimeout(() => tryFocusMirror(), 50);
+      window.setTimeout(() => tryFocusMirror(), 200);
     }
     scene.markDirty();
     try {
@@ -2462,21 +2517,22 @@ function mountScribe(): void {
     if (viewMode !== 'wysiwyg') {
       inlineSourceEl.hidden = true;
       inlineSourceEl.classList.remove('is-visible');
+      const prevIdx = lastInlineActiveIdx;
       lastInlineActiveIdx = -1;
-      // restore previously hidden markdown child
       try {
         const content = markdown.content as unknown as {
           children?: Array<{ opacity?: number }>;
         };
-        if (lastInlineActiveIdx !== -1 && content?.children?.[lastInlineActiveIdx]) {
-          // already reset above
+        if (prevIdx !== -1 && content?.children?.[prevIdx]) {
+          const prev = content.children[prevIdx];
+          if (prev && typeof prev.opacity === 'number') prev.opacity = 1;
         }
-        // restore all opacities
         if (content?.children) {
           for (const ch of content.children) {
             if (typeof ch.opacity === 'number' && ch.opacity !== 1) ch.opacity = 1;
           }
         }
+        scene.markDirty();
       } catch {
         // ignore
       }
@@ -2508,12 +2564,23 @@ function mountScribe(): void {
       scene.markDirty();
       return;
     }
+    const block = blocks[activeIdx];
+    // Display math is preview-only; never overlay source (prevents $$ leak over heading)
+    if ((block.token as { type?: string })?.type === 'blockMath') {
+      inlineSourceEl.hidden = true;
+      inlineSourceEl.classList.remove('is-visible');
+      // Ensure current block not dimmed
+      const curCheck = content?.children?.[activeIdx];
+      if (curCheck && typeof curCheck.opacity === 'number' && curCheck.opacity !== 1)
+        curCheck.opacity = 1;
+      lastInlineActiveIdx = -1;
+      scene.markDirty();
+      return;
+    }
     // Hide rendered block behind overlay to show source (Typora/Obsidian style)
     const cur = content?.children?.[activeIdx];
     if (cur && typeof cur.opacity === 'number') cur.opacity = 0.04;
     lastInlineActiveIdx = activeIdx;
-
-    const block = blocks[activeIdx];
     // Position overlay at block's visual box
     const box = getBlockVisualBox(activeIdx, blocks);
     const previewTop = (previewScroll as unknown as { y: number }).y ?? OUTER_PAD;
