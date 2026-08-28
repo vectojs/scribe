@@ -1978,6 +1978,99 @@ function mountScribe(): void {
     if (viewMode === 'wysiwyg') return;
     throttledPreviewWheelSync();
   });
+  // Fix: ScrollView only scrolls when pointer over preview content [data-vecto-content]; blank gutters don't scroll.
+  // Stage wheel listener forwards wheel delta to previewScroll regardless of pointer position when preview is active pane,
+  // and ensures scrollbar visible even when hovering blank area. Also bypasses isValidStageSize guard that blocks scroll at small sizes.
+  stage.addEventListener(
+    'wheel',
+    (ev: WheelEvent) => {
+      // Ignore if over explorer/toc/backdrop
+      const target = ev.target as HTMLElement | null;
+      if (target?.closest?.('#scribe-explorer, #scribe-toc, #scribe-backdrop, #scribe-settings'))
+        return;
+      // Don't double-handle when wheel already over preview content (ScrollView will handle there)
+      // But we still want gutter areas: if wheel over stage and preview has scrollable content, forward delta.
+      // In wysiwyg, any wheel over stage should scroll preview
+      // In source split, wheel over preview pane (including gutters) scrolls preview; over editor pane scrolls editor.
+      const rect = stage.getBoundingClientRect();
+      const xInStage = ev.clientX - rect.left;
+      const sW = stage.clientWidth;
+      const sH = stage.clientHeight;
+      // Allow small sizes: don't gate on isValidStageSize so scroll works even when stage reports tiny transient
+      // Compute editor pane width for split detection
+      const avail = Math.max(320, sW);
+      const editorW = Math.round((avail - GAP - HANDLE_W) * splitRatio);
+      const isOverPreviewPane = viewMode === 'wysiwyg' ? true : xInStage >= editorW + GAP / 2;
+      const isOverEditorPane = !isOverPreviewPane && viewMode !== 'wysiwyg';
+      if (isOverPreviewPane) {
+        const curTop = -(previewScroll as unknown as { content: { y: number } }).content.y || 0;
+        const contentH =
+          (previewScroll as unknown as { content: { height: number } }).content.height ||
+          markdown.height ||
+          0;
+        const maxScroll = Math.max(0, contentH - previewScroll.height);
+        if (maxScroll <= 0) return;
+        // Only handle if not already handled by ScrollView's own projection wheel
+        // If pointer is over [data-vecto-content], ScrollView already scrolls; but forwarding again would double.
+        // Detect via data-vecto-content ancestor: if present, let ScrollView own it and just sync preview->editor after.
+        const overContent = !!target?.closest?.('[data-vecto-content]');
+        if (overContent) return;
+        const delta = ev.deltaY;
+        if (Math.abs(delta) < 0.5) return;
+        const next = Math.max(0, Math.min(maxScroll, curTop + delta));
+        if (next !== curTop) {
+          ev.preventDefault();
+          previewScroll.scrollTo(next);
+          scene.markDirty();
+          updateScrollbars();
+        }
+      } else if (isOverEditorPane) {
+        const anyTA2 = textArea as unknown as {
+          scrollTop: number;
+          height: number;
+          padding: number;
+          lineHeightFactor: number;
+          font: string;
+        };
+        const lh2 = (() => {
+          const m = /([0-9.]+)px/.exec(anyTA2.font);
+          const fs = m ? Number.parseFloat(m[1]) : 14;
+          return fs * (anyTA2.lineHeightFactor ?? 1.6);
+        })();
+        const lc2 = (() => {
+          try {
+            return (
+              (textArea as unknown as { lineOfOffset: (n: number) => number }).lineOfOffset(
+                textArea.value.length,
+              ) + 1
+            );
+          } catch {
+            return textArea.value.split('\n').length || 1;
+          }
+        })();
+        const ch2 = lc2 * lh2 + 2 * anyTA2.padding;
+        const max2 = Math.max(0, ch2 - anyTA2.height);
+        if (max2 <= 0) return;
+        const overTAContent =
+          !!target?.closest?.('[data-vecto-content]') || !!target?.closest?.('textarea');
+        if (overTAContent) return;
+        const delta2 = ev.deltaY;
+        if (Math.abs(delta2) < 0.5) return;
+        const cur2 = anyTA2.scrollTop ?? 0;
+        const next2 = Math.max(0, Math.min(max2, cur2 + delta2));
+        if (next2 !== cur2) {
+          ev.preventDefault();
+          (textArea as unknown as { scrollTop: number }).scrollTop = next2;
+          const mirror = getMirrorTextarea();
+          if (mirror) (mirror as unknown as { scrollTop: number }).scrollTop = next2;
+          scene.markDirty();
+          updateScrollbars();
+        }
+      }
+      void sH;
+    },
+    { passive: false },
+  );
   // pointermove-driven preview→editor sync was too aggressive: it fired on every mouse move
   // over preview, even while dragging to SELECT text, causing TextArea scrollTop to be
   // recomputed mid-drag and the selection to visibly jump. Gate on actual drag-scroll
@@ -2008,6 +2101,7 @@ function mountScribe(): void {
   // 0-height transient from iOS Safari URL-bar collapse.
   // Centered reading column (Obsidian/Typora): max 860, balanced gutters, mobile responsive.
   // ── Visible overlay scrollbars — 8px, always visible (StackEdit/Obsidian) ──
+  // Flush to stage right edge (x+w-8 aligned to stage right edge, not x+w-10 inset). Track spans full height.
   const updatePreviewScrollbar = (): void => {
     if (!scrollbarPreviewEl || !scrollbarPreviewThumb) return;
     const viewportHeight = previewScroll.height;
@@ -2021,13 +2115,13 @@ function mountScribe(): void {
       return;
     }
     scrollbarPreviewEl.hidden = false;
-    const x = (previewScroll as unknown as { x: number }).x ?? OUTER_PAD;
-    const y = (previewScroll as unknown as { y: number }).y ?? OUTER_PAD;
-    const w = (previewScroll as unknown as { width: number }).width ?? 400;
+    // x+w-8 aligned to stage right edge: stage.clientWidth - 8 (was x+w-10 inset 10px inside preview)
+    const stageW = stage.clientWidth;
+    const stageH = stage.clientHeight;
     const scrollTop = -(previewScroll as unknown as { content: { y: number } }).content.y || 0;
-    const trackTop = Math.round(y);
-    const trackHeight = Math.round(viewportHeight);
-    const trackLeft = Math.round(x + w - 10);
+    const trackTop = 0;
+    const trackHeight = Math.round(stageH);
+    const trackLeft = Math.round(stageW - 8);
     scrollbarPreviewEl.style.left = `${trackLeft}px`;
     scrollbarPreviewEl.style.top = `${trackTop}px`;
     scrollbarPreviewEl.style.height = `${trackHeight}px`;
@@ -2080,12 +2174,14 @@ function mountScribe(): void {
       return;
     }
     scrollbarEditorEl.hidden = false;
-    const x = (textArea as unknown as { x: number }).x ?? OUTER_PAD;
-    const y = (textArea as unknown as { y: number }).y ?? OUTER_PAD;
-    const w = (textArea as unknown as { width: number }).width ?? 400;
-    const trackTop = Math.round(y);
-    const trackHeight = Math.round(viewportHeight);
-    const trackLeft = Math.round(x + w - 10);
+    // x+w-8 aligned to pane right edge (was x+w-10 inset). For split pane, flush to editor pane edge; width 8, full height.
+    const stageW = stage.clientWidth;
+    const availW = Math.max(320, stageW);
+    const editorPaneW = Math.round((availW - GAP - HANDLE_W) * splitRatio);
+    const stageH = stage.clientHeight;
+    const trackTop = 0;
+    const trackHeight = Math.round(stageH);
+    const trackLeft = Math.round(editorPaneW - 8);
     scrollbarEditorEl.style.left = `${trackLeft}px`;
     scrollbarEditorEl.style.top = `${trackTop}px`;
     scrollbarEditorEl.style.height = `${trackHeight}px`;
