@@ -305,9 +305,11 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     await focusBtn.click();
     await page.waitForTimeout(400);
     await expect(focusBtn).toHaveAttribute('aria-pressed', 'true');
-    // Open settings to inspect synced checkbox (modal)
+    // Open settings to inspect synced checkbox (modal) - now tabs, editor tab holds focus mode
     await page.locator('#scribe-settings-toggle').click();
     await expect(page.locator('#scribe-settings')).toBeVisible();
+    await page.locator('#scribe-settings-tab-editor').click();
+    await page.waitForTimeout(300);
     await expect(page.locator('#scribe-focus-mode')).toBeChecked();
     const stored = await page.evaluate(() => window.localStorage.getItem('scribe:focus-mode-v1'));
     expect(stored).toBe('true');
@@ -322,9 +324,11 @@ test.describe('scribe CTX-0540 — Typora WYSIWYG (Live vs Source)', () => {
     expect(box).not.toBeNull();
     if (box) expect(box.height).toBeGreaterThan(10);
 
-    // Toggle via settings checkbox — reopen modal
+    // Toggle via settings checkbox — reopen modal and go to editor tab
     await page.locator('#scribe-settings-toggle').click();
     await expect(page.locator('#scribe-settings')).toBeVisible();
+    await page.locator('#scribe-settings-tab-editor').click();
+    await page.waitForTimeout(300);
     const cb = page.locator('#scribe-focus-mode');
     await expect(cb).toBeVisible();
     await cb.uncheck();

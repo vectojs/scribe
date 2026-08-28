@@ -12,28 +12,30 @@ test.describe('scribe CTX-0539 — collapsible explorer, theme picker, kitchen s
     await page.waitForTimeout(400);
     const toggle = page.locator('#scribe-toggle-explorer');
     await expect(toggle).toBeVisible();
+    const sidebar = page.locator('#scribe-sidebar');
+    await expect(sidebar).toBeVisible();
     const explorer = page.locator('#scribe-explorer');
     await expect(explorer).toBeVisible();
-    const initialWidth = await explorer.evaluate((el) => (el as HTMLElement).offsetWidth);
+    const initialWidth = await sidebar.evaluate((el) => (el as HTMLElement).offsetWidth);
     expect(initialWidth).toBeGreaterThan(100);
 
-    // Collapse
+    // Collapse sidebar via Files toggle (same tab -> collapse)
     await toggle.click();
     await page.waitForTimeout(350);
-    const collapsedWidth = await explorer.evaluate((el) => (el as HTMLElement).offsetWidth);
+    const collapsedWidth = await sidebar.evaluate((el) => (el as HTMLElement).offsetWidth);
     expect(collapsedWidth).toBeLessThan(10);
-    // persisted
+    // persisted - new unified key
     const stored = await page.evaluate(() =>
-      window.localStorage.getItem('scribe:explorer-collapsed-v1'),
+      window.localStorage.getItem('scribe:sidebar-collapsed-v1'),
     );
     expect(stored).toBe('true');
     // aria-expanded false
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
-    // Expand again
+    // Expand again (same tab)
     await toggle.click();
     await page.waitForTimeout(350);
-    const expandedWidth = await explorer.evaluate((el) => (el as HTMLElement).offsetWidth);
+    const expandedWidth = await sidebar.evaluate((el) => (el as HTMLElement).offsetWidth);
     expect(expandedWidth).toBeGreaterThan(100);
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
 
@@ -42,14 +44,14 @@ test.describe('scribe CTX-0539 — collapsible explorer, theme picker, kitchen s
     await page.waitForTimeout(300);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(400);
-    // On mobile, explorer should be overlay hidden (transform), but toggle-collapse is hidden, hamburger visible
+    // On mobile, sidebar should be overlay hidden (transform), but toggle-collapse is hidden, hamburger visible
     await expect(page.locator('#scribe-menu-toggle')).toBeVisible();
     await expect(page.locator('#scribe-toggle-explorer')).toBeHidden();
     // Open via hamburger
     await page.locator('#scribe-menu-toggle').click();
     await page.waitForTimeout(300);
     const hasOpen = await page.evaluate(
-      () => document.getElementById('scribe-explorer')?.classList.contains('is-open') ?? false,
+      () => document.getElementById('scribe-sidebar')?.classList.contains('is-open') ?? false,
     );
     expect(hasOpen).toBeTruthy();
     await page.locator('#scribe-backdrop').click({ position: { x: 350, y: 200 } });
@@ -63,6 +65,20 @@ test.describe('scribe CTX-0539 — collapsible explorer, theme picker, kitchen s
     );
     await page.setViewportSize({ width: 1200, height: 800 });
     await page.waitForTimeout(500);
+    // Sidebar drawer with tabs: Files and Outline
+    const sidebar = page.locator('#scribe-sidebar');
+    await expect(sidebar).toBeVisible();
+    const tabFiles = page.locator('#scribe-sidebar-tab-files');
+    const tabOutline = page.locator('#scribe-sidebar-tab-outline');
+    await expect(tabFiles).toBeVisible();
+    await expect(tabOutline).toBeVisible();
+    // Initially Files tab active, outline hidden
+    await expect(tabFiles).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#scribe-explorer')).toBeVisible();
+    // Switch to Outline tab
+    await tabOutline.click();
+    await page.waitForTimeout(300);
+    await expect(tabOutline).toHaveAttribute('aria-selected', 'true');
     const toc = page.locator('#scribe-toc');
     await expect(toc).toBeVisible();
     const tocList = page.locator('#scribe-toc-list');
@@ -73,18 +89,21 @@ test.describe('scribe CTX-0539 — collapsible explorer, theme picker, kitchen s
     expect(count).toBeGreaterThan(10);
     const firstDepth = await tocLinks.first().getAttribute('data-depth');
     expect(firstDepth).not.toBeNull();
-    // Check toggle-toc button
+    // Check toggle-toc button switches to outline and collapses when already on outline
     const toggleToc = page.locator('#scribe-toggle-toc');
     await expect(toggleToc).toBeVisible();
-    const tocExplorer = page.locator('#scribe-toc');
-    const initialW = await tocExplorer.evaluate((el) => (el as HTMLElement).offsetWidth);
+    // At this point sidebar is on outline and expanded, so toggleToc click should collapse
+    const initialW = await sidebar.evaluate((el) => (el as HTMLElement).offsetWidth);
     expect(initialW).toBeGreaterThan(100);
     await toggleToc.click();
     await page.waitForTimeout(350);
-    const collapsedW = await tocExplorer.evaluate((el) => (el as HTMLElement).offsetWidth);
+    const collapsedW = await sidebar.evaluate((el) => (el as HTMLElement).offsetWidth);
     expect(collapsedW).toBeLessThan(10);
     await toggleToc.click();
     await page.waitForTimeout(350);
+    await expect(sidebar).toBeVisible();
+    // After re-expand, outline tab should still be active
+    await expect(tabOutline).toHaveAttribute('aria-selected', 'true');
   });
 
   test('sample kitchen sink renders and TOC maps correctly after collapse', async ({ page }) => {
@@ -109,6 +128,12 @@ test.describe('scribe CTX-0539 — collapsible explorer, theme picker, kitchen s
       return w.__app.markdown.height;
     });
     expect(h).toBeGreaterThan(500);
+    // Ensure outline tab is active to see TOC
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.waitForTimeout(300);
+    const tabOutline = page.locator('#scribe-sidebar-tab-outline');
+    await tabOutline.click();
+    await page.waitForTimeout(300);
     // TOC should have heading positions
     const tocCount = await page.locator('#scribe-toc-list a').count();
     expect(tocCount).toBeGreaterThan(15);
