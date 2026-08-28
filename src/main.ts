@@ -1509,8 +1509,9 @@ function mountScribe(): void {
 
   // --- Sync scroll: bidirectional, debounced, no loop ---
   // 80ms guard made wheel feel dead (every 5th tick only). 32ms keeps loop
-  // prevention but lets 30Hz wheel through.
-  const guard = new SyncGuard(32);
+  // prevention but lets 30Hz wheel through. Preview→editor bumped to 50ms
+  // to reduce wheel thrash at 60-120Hz while keeping editor→preview snappy.
+  const guard = new SyncGuard(50);
 
   const getEditorMetrics = (): {
     scrollTop: number;
@@ -1908,6 +1909,7 @@ function mountScribe(): void {
   });
   previewScroll.on('wheel', () => {
     if (!scrollSyncEnabled) return;
+    if (viewMode === 'wysiwyg') return;
     throttledPreviewWheelSync();
   });
   // pointermove-driven preview→editor sync was too aggressive: it fired on every mouse move
@@ -2492,7 +2494,7 @@ function mountScribe(): void {
       queueFocusHighlight();
     }
   });
-  previewScroll.on('wheel', queueFocusHighlight as unknown as () => void);
+  // wheel -> focusHighlight removed: overlay follows scroll via scrollTo wrapper + interval; wheel tick no longer thrashes rAF
   // Re-render also nudges highlight (debouncedRender does layout+markDirty)
   const prevDebounced = debouncedRender;
   void prevDebounced;
@@ -2603,7 +2605,7 @@ function mountScribe(): void {
     inlineSourceEl.style.left = `${Math.round(previewLeft + 8)}px`;
     inlineSourceEl.style.width = `${Math.max(120, Math.round(previewWidth - 16))}px`;
     inlineSourceEl.style.height = 'auto';
-    inlineSourceEl.style.minHeight = `${Math.round(height + 8)}px`;
+    inlineSourceEl.style.minHeight = `${Math.round(height)}px`;
     // keep within viewport: adjust max-height if block tall
     const viewportBottom = previewTop + previewScroll.height;
     const avail = Math.max(40, viewportBottom - top - 8);
@@ -2651,8 +2653,7 @@ function mountScribe(): void {
       queueInlineWysiwyg();
     }
   });
-  // Scroll and layout changes move overlay with content
-  previewScroll.on('wheel', queueInlineWysiwyg as unknown as () => void);
+  // Scroll and layout changes move overlay with content (wheel no longer directly re-renders overlay: scrollTo wrapper + interval cover it)
   previewScroll.on('pointermove', () => {
     // sync during drag stays subtle; just ensure overlay follows scroll
   });
