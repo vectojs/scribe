@@ -40,6 +40,11 @@
         --scribe-muted-2: #8a8175;
         --scribe-accent: #d97757;
         --scribe-accent-bg: #fdf0e6;
+        --scribe-ribbon-bg: #2b2b2b;
+        --scribe-ribbon-fg: #a8a8a8;
+        --scribe-ribbon-active: #ffffff;
+        --scribe-ribbon-hover: rgba(255, 255, 255, 0.08);
+        --scribe-ribbon-width: 48px;
       }
 
       /* DPR hairline: crisper borders on HiDPI without layout shift */
@@ -74,6 +79,194 @@
         color: var(--scribe-fg);
         font-family: "Inter", system-ui, sans-serif;
         -webkit-text-size-adjust: 100%;
+      }
+
+      /* ── Ribbon shell: Obsidian-style 48px left bar + flex row wrapper ── */
+      #scribe-root {
+        display: flex;
+        flex-direction: row;
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      #scribe-ribbon {
+        width: var(--scribe-ribbon-width);
+        min-width: var(--scribe-ribbon-width);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 8px 0 10px;
+        background: var(--scribe-ribbon-bg);
+        border-right: var(--hairline) solid #3a3a3a;
+        flex-shrink: 0;
+        z-index: 25;
+        overflow: hidden;
+        transition:
+          width 180ms cubic-bezier(0.32, 0.72, 0, 1),
+          min-width 180ms cubic-bezier(0.32, 0.72, 0, 1),
+          opacity 140ms,
+          border-color 140ms;
+      }
+
+      #scribe-ribbon.is-collapsed {
+        width: 0 !important;
+        min-width: 0 !important;
+        padding-left: 0;
+        padding-right: 0;
+        opacity: 1;
+        pointer-events: none;
+        border-right-width: 0;
+        overflow: visible;
+      }
+
+      #scribe-ribbon.is-collapsed .scribe-ribbon__group--top,
+      #scribe-ribbon.is-collapsed .scribe-ribbon__sep,
+      #scribe-ribbon.is-collapsed #scribe-ribbon-new,
+      #scribe-ribbon.is-collapsed #scribe-settings-toggle {
+        display: none !important;
+      }
+
+      #scribe-ribbon.is-collapsed .scribe-ribbon__group--bottom {
+        display: flex !important;
+        position: fixed;
+        left: 6px;
+        bottom: 12px;
+        z-index: 30;
+        pointer-events: auto;
+        background: var(--scribe-ribbon-bg);
+        border: 1px solid #3a3a3a;
+        border-radius: 8px;
+        padding: 4px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+      }
+
+      #scribe-ribbon.is-collapsed #scribe-ribbon-collapse {
+        display: inline-flex !important;
+        pointer-events: auto;
+        opacity: 1;
+      }
+
+      .scribe-ribbon__group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+        padding: 4px 0;
+      }
+
+      .scribe-ribbon__group--top {
+        flex: 0 0 auto;
+      }
+
+      .scribe-ribbon__group--bottom {
+        margin-top: auto;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        width: 100%;
+        gap: 6px;
+      }
+
+      .scribe-ribbon__btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--scribe-ribbon-fg);
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+        flex-shrink: 0;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        transition:
+          background 120ms,
+          color 120ms,
+          opacity 120ms;
+      }
+
+      .scribe-ribbon__btn:hover {
+        background: var(--scribe-ribbon-hover);
+        color: var(--scribe-ribbon-active);
+      }
+
+      .scribe-ribbon__btn:active {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .scribe-ribbon__btn:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 2px;
+      }
+
+      .scribe-ribbon__btn.is-active {
+        background: rgba(255, 255, 255, 0.12);
+        color: var(--scribe-ribbon-active);
+        box-shadow: inset 2px 0 0 var(--scribe-accent);
+      }
+
+      .scribe-ribbon__btn[aria-pressed="true"],
+      .scribe-ribbon__btn[aria-expanded="true"] {
+        background: rgba(255, 255, 255, 0.12);
+        color: var(--scribe-ribbon-active);
+      }
+
+      .scribe-ribbon__btn svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+
+      .scribe-ribbon__btn svg.fill {
+        fill: currentColor;
+        stroke: none;
+      }
+
+      .scribe-ribbon__sep {
+        width: 22px;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.08);
+        margin: 4px 0;
+        flex-shrink: 0;
+      }
+
+      /* Ribbon collapse toggle sits above settings */
+      #scribe-ribbon-collapse {
+        font-size: 14px;
+        color: var(--scribe-muted-2);
+      }
+
+      /* Settings in ribbon overrides the old header rule */
+      #scribe-ribbon #scribe-settings-toggle {
+        display: inline-flex !important;
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: transparent;
+        color: var(--scribe-ribbon-fg);
+      }
+
+      #scribe-ribbon #scribe-settings-toggle:hover {
+        background: var(--scribe-ribbon-hover);
+        color: var(--scribe-ribbon-active);
+      }
+
+      #scribe-root > #scribe-app {
+        flex: 1;
+        min-width: 0;
       }
 
       #scribe-app {
@@ -633,9 +826,9 @@
         display: flex;
       }
 
-      /* Gear button always visible — clean editor, settings is modal */
-      #scribe-settings-toggle {
-        display: inline-flex !important;
+      /* Gear button — now in ribbon; header no longer owns it */
+      #scribe-header #scribe-settings-toggle {
+        display: none !important;
       }
 
       @keyframes scribe-settings-in {
@@ -897,6 +1090,13 @@
         font-size: 10px;
         line-height: 1.6;
         margin-right: 2px;
+      }
+
+      /* ── Ribbon responsive: hide on narrow (Obsidian) + collapsible ── */
+      @media (max-width: 900px) {
+        #scribe-ribbon {
+          display: none !important;
+        }
       }
 
       /* ── Responsive: 900px overlay (explorer / toc become drawers; settings is modal) ── */
@@ -1383,6 +1583,7 @@
       }
 
       @media print {
+        #scribe-ribbon,
         #scribe-header,
         #scribe-explorer,
         #scribe-toc,
@@ -1400,7 +1601,98 @@
     </style>
   </head>
   <body>
-    <div id="scribe-app">
+    <div id="scribe-root">
+      <!-- Obsidian-style left ribbon — 48px vertical bar -->
+      <aside id="scribe-ribbon" aria-label="Ribbon" role="navigation">
+        <div class="scribe-ribbon__group scribe-ribbon__group--top">
+          <button
+            id="scribe-ribbon-files"
+            class="scribe-ribbon__btn"
+            type="button"
+            aria-label="文件管理器"
+            title="文件管理器"
+            aria-pressed="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <line x1="8" y1="9" x2="8" y2="9" />
+            </svg>
+          </button>
+          <button
+            id="scribe-ribbon-search"
+            class="scribe-ribbon__btn"
+            type="button"
+            aria-label="搜索"
+            title="搜索 (占位)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="16.5" y1="16.5" x2="21" y2="21" />
+            </svg>
+          </button>
+          <button
+            id="scribe-ribbon-toc"
+            class="scribe-ribbon__btn"
+            type="button"
+            aria-label="大纲"
+            title="大纲"
+            aria-pressed="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <line x1="4" y1="6" x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+              <line x1="8" y1="6" x2="8" y2="18" />
+            </svg>
+          </button>
+          <div class="scribe-ribbon__sep" aria-hidden="true"></div>
+          <button
+            id="scribe-ribbon-new"
+            class="scribe-ribbon__btn"
+            type="button"
+            aria-label="新建文件"
+            title="新建文件"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
+        <div class="scribe-ribbon__group scribe-ribbon__group--bottom">
+          <button
+            id="scribe-ribbon-collapse"
+            class="scribe-ribbon__btn"
+            type="button"
+            aria-label="收起功能区"
+            title="收起功能区"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <button
+            id="scribe-settings-toggle"
+            class="scribe-ribbon__btn"
+            type="button"
+            aria-label="设置"
+            aria-expanded="false"
+            aria-controls="scribe-settings"
+            title="设置"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M12 1v2 M12 21v2 M4.22 4.22l1.42 1.42 M18.36 18.36l1.42 1.42 M1 12h2 M21 12h2 M4.22 19.78l1.42-1.42 M18.36 5.64l1.42-1.42"
+              />
+            </svg>
+          </button>
+        </div>
+      </aside>
+      <div id="scribe-app">
       <header id="scribe-header" aria-label="Scribe 顶部栏">
         <div
           style="
@@ -1450,16 +1742,6 @@
           style="display: flex; align-items: center; gap: 12px; flex-shrink: 0"
         >
           <span id="scribe-save-status" aria-live="polite">已保存</span>
-          <button
-            id="scribe-settings-toggle"
-            class="scribe-icon-btn"
-            type="button"
-            aria-label="切换设置"
-            aria-expanded="false"
-            aria-controls="scribe-settings"
-          >
-            ⚙
-          </button>
           <div id="scribe-export-group" aria-label="导出">
             <button
               id="scribe-export-md"
@@ -2040,6 +2322,7 @@
         aria-hidden="true"
         aria-label="上下文菜单"
       ></div>
+    </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

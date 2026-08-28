@@ -136,6 +136,14 @@ export const zhCN: Record<keyof typeof en, string> = {
   'files.notes': '笔记.md',
   'files.untitled': '未命名.md',
   'files.untitledPattern': '未命名-{n}.md',
+  // ribbon (Obsidian-style)
+  'ribbon.files': '文件管理器',
+  'ribbon.search': '搜索',
+  'ribbon.outline': '大纲',
+  'ribbon.newFile': '新建文件',
+  'ribbon.settings': '设置',
+  'ribbon.collapse': '收起功能区',
+  'ribbon.expand': '展开功能区',
   // context menu (Obsidian-style)
   'context.cut': '剪切',
   'context.copy': '复制',

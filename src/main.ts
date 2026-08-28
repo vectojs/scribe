@@ -121,6 +121,17 @@ function mountScribe(): void {
   const settingsToggle = document.getElementById(
     'scribe-settings-toggle',
   ) as HTMLButtonElement | null;
+  // Ribbon (Obsidian-style left bar) — 48px vertical
+  const ribbonEl = document.getElementById('scribe-ribbon') as HTMLElement | null;
+  const ribbonFilesBtn = document.getElementById('scribe-ribbon-files') as HTMLButtonElement | null;
+  const ribbonSearchBtn = document.getElementById(
+    'scribe-ribbon-search',
+  ) as HTMLButtonElement | null;
+  const ribbonTocBtn = document.getElementById('scribe-ribbon-toc') as HTMLButtonElement | null;
+  const ribbonNewBtn = document.getElementById('scribe-ribbon-new') as HTMLButtonElement | null;
+  const ribbonCollapseBtn = document.getElementById(
+    'scribe-ribbon-collapse',
+  ) as HTMLButtonElement | null;
   const backdrop = document.getElementById('scribe-backdrop') as HTMLElement | null;
   const settingsPanel = document.getElementById('scribe-settings') as HTMLDialogElement | null;
   const settingsCloseBtn = document.getElementById(
@@ -242,6 +253,17 @@ function mountScribe(): void {
         ? t('header.expand.explorer')
         : t('header.collapse.explorer');
     }
+    if (ribbonFilesBtn) {
+      ribbonFilesBtn.setAttribute('aria-pressed', String(!collapsed));
+      ribbonFilesBtn.classList.toggle('is-active', !collapsed);
+      ribbonFilesBtn.setAttribute(
+        'aria-label',
+        collapsed ? t('header.expand.explorer') : t('header.collapse.explorer'),
+      );
+      ribbonFilesBtn.title = collapsed
+        ? t('header.expand.explorer')
+        : t('header.collapse.explorer');
+    }
   };
   const applyTocCollapsed = (collapsed: boolean): void => {
     if (!tocNav) return;
@@ -255,12 +277,55 @@ function mountScribe(): void {
       );
       toggleTocBtn.title = collapsed ? t('header.expand.outline') : t('header.collapse.outline');
     }
+    if (ribbonTocBtn) {
+      ribbonTocBtn.setAttribute('aria-pressed', String(!collapsed));
+      ribbonTocBtn.classList.toggle('is-active', !collapsed);
+      ribbonTocBtn.setAttribute(
+        'aria-label',
+        collapsed ? t('header.expand.outline') : t('header.collapse.outline'),
+      );
+      ribbonTocBtn.title = collapsed ? t('header.expand.outline') : t('header.collapse.outline');
+    }
   };
 
   const explorerCollapsed = readCollapsed(EXPLORER_COLLAPSED_KEY);
   const tocCollapsed = readCollapsed(TOC_COLLAPSED_KEY);
   applyExplorerCollapsed(explorerCollapsed);
   applyTocCollapsed(tocCollapsed);
+
+  // ── Ribbon collapsed (Obsidian-style: collapsible 48px bar, persists) ────────
+  const RIBBON_COLLAPSED_KEY = 'scribe:ribbon-collapsed-v1';
+  const applyRibbonCollapsed = (collapsed: boolean): void => {
+    if (!ribbonEl) return;
+    ribbonEl.classList.toggle('is-collapsed', collapsed);
+    if (ribbonCollapseBtn) {
+      const label = collapsed ? t('ribbon.expand') : t('ribbon.collapse');
+      ribbonCollapseBtn.setAttribute('aria-label', label);
+      ribbonCollapseBtn.title = label;
+      // rotate chevron via aria-expanded for CSS hook if needed
+      ribbonCollapseBtn.setAttribute('aria-expanded', String(!collapsed));
+    }
+    // Ensure ribbon buttons reflect current state when collapsing/expanding
+    // Do not alter explorer/toc collapsed here — they keep their own keys
+  };
+  const ribbonCollapsedInit = (() => {
+    try {
+      return window.localStorage.getItem(RIBBON_COLLAPSED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  })();
+  applyRibbonCollapsed(ribbonCollapsedInit);
+  ribbonCollapseBtn?.addEventListener('click', () => {
+    const now = !(ribbonEl?.classList.contains('is-collapsed') ?? false);
+    applyRibbonCollapsed(now);
+    try {
+      window.localStorage.setItem(RIBBON_COLLAPSED_KEY, String(now));
+    } catch {
+      // ignore
+    }
+    window.dispatchEvent(new Event('resize'));
+  });
 
   // Collapse toggles — persist + re-apply. ResizeObserver on stage will reflow canvas when flex gives stage more width.
   toggleExplorerBtn?.addEventListener('click', () => {
@@ -275,6 +340,137 @@ function mountScribe(): void {
     applyTocCollapsed(now);
     writeCollapsed(TOC_COLLAPSED_KEY, now);
     window.dispatchEvent(new Event('resize'));
+  });
+
+  // ── Ribbon wiring: Files / Search / TOC / New → explorer / toc / settings ──
+  const isOverlayForRibbon = (): boolean => window.innerWidth < 900;
+  const toggleExplorerForRibbon = (): void => {
+    if (isOverlayForRibbon()) {
+      const willOpen = !(explorerNav?.classList.contains('is-open') ?? false);
+      explorerNav?.classList.toggle('is-open', willOpen);
+      if (willOpen && window.innerWidth < 640) tocNav?.classList.remove('is-open');
+      // sync backdrop/aria via helper if available (syncDrawerA11y defined later) — fallback:
+      const backdropEl = document.getElementById('scribe-backdrop') as HTMLElement | null;
+      if (backdropEl) backdropEl.hidden = !(explorerNav?.classList.contains('is-open') ?? false);
+      if (willOpen) document.body.style.overflow = 'hidden';
+      else if (!(tocNav?.classList.contains('is-open') ?? false)) document.body.style.overflow = '';
+      // Update aria
+      const menuToggleEl2 = document.getElementById(
+        'scribe-menu-toggle',
+      ) as HTMLButtonElement | null;
+      if (menuToggleEl2) menuToggleEl2.setAttribute('aria-expanded', String(willOpen));
+    } else {
+      const now = !(explorerNav?.classList.contains('is-collapsed') ?? false);
+      applyExplorerCollapsed(now);
+      writeCollapsed(EXPLORER_COLLAPSED_KEY, now);
+      window.dispatchEvent(new Event('resize'));
+    }
+  };
+  const toggleTocForRibbon = (): void => {
+    if (isOverlayForRibbon()) {
+      const willOpen = !(tocNav?.classList.contains('is-open') ?? false);
+      tocNav?.classList.toggle('is-open', willOpen);
+      if (willOpen && window.innerWidth < 640) explorerNav?.classList.remove('is-open');
+      const backdropEl = document.getElementById('scribe-backdrop') as HTMLElement | null;
+      const anyOpen =
+        (explorerNav?.classList.contains('is-open') ?? false) ||
+        (tocNav?.classList.contains('is-open') ?? false);
+      if (backdropEl) backdropEl.hidden = !anyOpen;
+      document.body.style.overflow = anyOpen ? 'hidden' : '';
+      const menuToggleEl2 = document.getElementById(
+        'scribe-menu-toggle',
+      ) as HTMLButtonElement | null;
+      if (menuToggleEl2) menuToggleEl2.setAttribute('aria-expanded', String(anyOpen));
+    } else {
+      const now = !(tocNav?.classList.contains('is-collapsed') ?? false);
+      applyTocCollapsed(now);
+      writeCollapsed(TOC_COLLAPSED_KEY, now);
+      window.dispatchEvent(new Event('resize'));
+    }
+  };
+  ribbonFilesBtn?.addEventListener('click', toggleExplorerForRibbon);
+  ribbonTocBtn?.addEventListener('click', toggleTocForRibbon);
+  ribbonSearchBtn?.addEventListener('click', () => {
+    // Search is placeholder (no dedicated search UI yet) — focus explorer and ensure visible.
+    // In overlay: open explorer drawer; on desktop: expand if collapsed.
+    if (isOverlayForRibbon()) {
+      if (!(explorerNav?.classList.contains('is-open') ?? false)) toggleExplorerForRibbon();
+      // flash explorer border to indicate placeholder
+      if (explorerNav) {
+        explorerNav.style.transition = 'box-shadow 200ms';
+        explorerNav.style.boxShadow = 'inset 0 0 0 2px var(--scribe-accent)';
+        window.setTimeout(() => {
+          if (explorerNav) explorerNav.style.boxShadow = '';
+        }, 600);
+      }
+    } else {
+      if (explorerNav?.classList.contains('is-collapsed')) {
+        applyExplorerCollapsed(false);
+        writeCollapsed(EXPLORER_COLLAPSED_KEY, false);
+        window.dispatchEvent(new Event('resize'));
+      }
+      // same flash
+      if (explorerNav) {
+        explorerNav.style.transition = 'box-shadow 200ms';
+        explorerNav.style.boxShadow = 'inset 0 0 0 2px var(--scribe-accent)';
+        window.setTimeout(() => {
+          if (explorerNav) explorerNav.style.boxShadow = '';
+        }, 600);
+      }
+    }
+  });
+  ribbonNewBtn?.addEventListener('click', () => {
+    try {
+      // Prefer clicking the explorer's + button if it exists (handles model + storage + rerender)
+      // The first button in explorerNav header is the add button (textContent === '+')
+      const addBtn = explorerNav
+        ? (Array.from(explorerNav.querySelectorAll('button')).find(
+            (b) => b.textContent === '+',
+          ) as HTMLButtonElement | null)
+        : null;
+      if (addBtn) {
+        addBtn.click();
+        // Ensure explorer visible
+        if (isOverlayForRibbon()) {
+          if (!(explorerNav?.classList.contains('is-open') ?? false)) {
+            explorerNav?.classList.add('is-open');
+            const bd2 = document.getElementById('scribe-backdrop') as HTMLElement | null;
+            if (bd2) bd2.hidden = false;
+            document.body.style.overflow = 'hidden';
+          }
+        } else {
+          if (explorerNav?.classList.contains('is-collapsed')) {
+            applyExplorerCollapsed(false);
+            writeCollapsed(EXPLORER_COLLAPSED_KEY, false);
+            window.dispatchEvent(new Event('resize'));
+          }
+        }
+        return;
+      }
+      // Fallback: direct model push if explorer not yet mounted
+      const pattern = t('files.untitledPattern');
+      const suffix = String(Date.now() % 1000);
+      const name = pattern.includes('{n}')
+        ? pattern.replace('{n}', suffix)
+        : `Untitled-${suffix}.md`;
+      const entry = model.addFile(name, `# ${name.replace('.md', '')}\n\n`);
+      saveDocumentWithStorage(model, window.localStorage);
+      if (isOverlayForRibbon()) {
+        explorerNav?.classList.add('is-open');
+        const bd = document.getElementById('scribe-backdrop') as HTMLElement | null;
+        if (bd) bd.hidden = false;
+        document.body.style.overflow = 'hidden';
+      } else if (explorerNav?.classList.contains('is-collapsed')) {
+        applyExplorerCollapsed(false);
+        writeCollapsed(EXPLORER_COLLAPSED_KEY, false);
+        window.dispatchEvent(new Event('resize'));
+      }
+      void entry;
+      // Trigger a rerender via resize; actual editor sync will happen on next mountExplorer callback if available
+      window.dispatchEvent(new Event('resize'));
+    } catch {
+      // ignore
+    }
   });
 
   // ── WYSIWYG view mode + Focus mode (CTX-0540, Typora-inspired) ──────────
@@ -760,6 +956,49 @@ function mountScribe(): void {
   };
 
   const applyStaticI18n = (locale: Locale): void => {
+    // ribbon
+    const ribbonElI18n = document.getElementById('scribe-ribbon') as HTMLElement | null;
+    if (ribbonElI18n)
+      ribbonElI18n.setAttribute(
+        'aria-label',
+        t('ribbon.files', locale) + ' / ' + t('ribbon.search', locale),
+      );
+    const ribbonFilesI18n = document.getElementById('scribe-ribbon-files') as HTMLElement | null;
+    if (ribbonFilesI18n) {
+      ribbonFilesI18n.setAttribute('aria-label', t('ribbon.files', locale));
+      ribbonFilesI18n.title = t('ribbon.files', locale);
+    }
+    const ribbonSearchI18n = document.getElementById('scribe-ribbon-search') as HTMLElement | null;
+    if (ribbonSearchI18n) {
+      ribbonSearchI18n.setAttribute('aria-label', t('ribbon.search', locale));
+      ribbonSearchI18n.title = t('ribbon.search', locale);
+    }
+    const ribbonTocI18n = document.getElementById('scribe-ribbon-toc') as HTMLElement | null;
+    if (ribbonTocI18n) {
+      ribbonTocI18n.setAttribute('aria-label', t('ribbon.outline', locale));
+      ribbonTocI18n.title = t('ribbon.outline', locale);
+    }
+    const ribbonNewI18n = document.getElementById('scribe-ribbon-new') as HTMLElement | null;
+    if (ribbonNewI18n) {
+      ribbonNewI18n.setAttribute('aria-label', t('ribbon.newFile', locale));
+      ribbonNewI18n.title = t('ribbon.newFile', locale);
+    }
+    const ribbonCollapseI18n = document.getElementById(
+      'scribe-ribbon-collapse',
+    ) as HTMLElement | null;
+    if (ribbonCollapseI18n) {
+      const isCollapsed = ribbonEl?.classList.contains('is-collapsed') ?? false;
+      const label = isCollapsed ? t('ribbon.expand', locale) : t('ribbon.collapse', locale);
+      ribbonCollapseI18n.setAttribute('aria-label', label);
+      ribbonCollapseI18n.title = label;
+    }
+    const ribbonSettingsI18n = document.getElementById(
+      'scribe-settings-toggle',
+    ) as HTMLElement | null;
+    if (ribbonSettingsI18n) {
+      ribbonSettingsI18n.setAttribute('aria-label', t('ribbon.settings', locale));
+      ribbonSettingsI18n.title = t('ribbon.settings', locale);
+    }
     // header
     if (headerEl) headerEl.setAttribute('aria-label', t('header.aria', locale));
     const menuToggleEl = document.getElementById('scribe-menu-toggle') as HTMLElement | null;
