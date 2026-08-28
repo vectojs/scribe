@@ -500,6 +500,33 @@
         outline-offset: 1px;
       }
 
+      #scribe-file-group {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      #scribe-file-group button {
+        font-size: 12px;
+        font-family: system-ui, sans-serif;
+        padding: 6px 10px;
+        border: 1px solid var(--scribe-border);
+        background: var(--scribe-pane-bg);
+        border-radius: 6px;
+        cursor: pointer;
+        color: var(--scribe-fg);
+      }
+
+      #scribe-file-group button:hover {
+        background: var(--scribe-accent-bg);
+        border-color: var(--scribe-accent);
+      }
+
+      #scribe-file-group button:focus-visible {
+        outline: 2px solid var(--scribe-accent);
+        outline-offset: 1px;
+      }
+
       #scribe-body {
         display: flex;
         flex: 1;
@@ -1743,6 +1770,32 @@
           style="display: flex; align-items: center; gap: 12px; flex-shrink: 0"
         >
           <span id="scribe-save-status" aria-live="polite">已保存</span>
+          <div id="scribe-file-group" role="group" aria-label="文件">
+            <button
+              id="scribe-open-file"
+              type="button"
+              title="打开文件 (Ctrl+O)"
+              aria-label="打开文件"
+            >
+              打开
+            </button>
+            <button
+              id="scribe-save-file"
+              type="button"
+              title="保存 (Ctrl+S)"
+              aria-label="保存"
+            >
+              保存
+            </button>
+            <button
+              id="scribe-save-as-file"
+              type="button"
+              title="另存为 (Ctrl+Shift+S)"
+              aria-label="另存为"
+            >
+              另存为
+            </button>
+          </div>
           <div id="scribe-export-group" aria-label="导出">
             <button
               id="scribe-export-md"

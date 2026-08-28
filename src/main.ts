@@ -39,6 +39,12 @@ import {
   saveDocumentWithStorage,
 } from './model/storage';
 import { parseToc } from './model/toc';
+import {
+  isTauri,
+  openMarkdownFile,
+  saveMarkdownFile,
+  writeMarkdownFileDirect,
+} from './utils/tauri';
 import { exportHtml, exportMarkdown, exportPdf } from './view/export';
 import { mountExplorer } from './view/explorer';
 import { getHeadingPositions, renderToc } from './view/toc';
@@ -116,6 +122,9 @@ function mountScribe(): void {
   const exportMdBtn = document.getElementById('scribe-export-md') as HTMLElement | null;
   const exportHtmlBtn = document.getElementById('scribe-export-html') as HTMLElement | null;
   const exportPdfBtn = document.getElementById('scribe-export-pdf') as HTMLElement | null;
+  const openFileBtn = document.getElementById('scribe-open-file') as HTMLElement | null;
+  const saveFileBtn = document.getElementById('scribe-save-file') as HTMLElement | null;
+  const saveAsFileBtn = document.getElementById('scribe-save-as-file') as HTMLElement | null;
   // Responsive shell hamburger/drawer hooks (CTX-0536) — explorer/toc drawers + settings modal (CTX-0543)
   const menuToggle = document.getElementById('scribe-menu-toggle') as HTMLButtonElement | null;
   const settingsToggle = document.getElementById(
@@ -219,6 +228,36 @@ function mountScribe(): void {
   } catch {
     // ignore storage errors
   }
+
+  // ── File system: Tauri + File System Access API fallback (CTX-TAURI-FS) ──
+  let currentFilePath: string | null = null;
+  // FileSystemFileHandle is not in lib.dom for all targets; use unknown + narrow via duck typing
+  let currentFileHandle: unknown = null;
+  let lastSavedContent: string = model.activeFile?.content ?? '';
+  let isDirty = false;
+
+  const basename = (p: string): string => p.split(/[\\/]/).pop() ?? p;
+
+  const hasFileSystemAccess = (): boolean =>
+    typeof window !== 'undefined' && 'showOpenFilePicker' in window;
+
+  const syncDirtyState = (nextContent: string): void => {
+    isDirty = nextContent !== lastSavedContent;
+    if (fileNameEl) {
+      const base = currentFilePath
+        ? basename(currentFilePath)
+        : (model.activeFile?.name ?? t('header.fileName.untitled'));
+      fileNameEl.textContent = isDirty ? `${base} •` : base;
+      fileNameEl.title = currentFilePath ?? base;
+    }
+    if (saveStatusEl) {
+      saveStatusEl.textContent = isDirty ? t('header.save.edited') : t('header.save.saved');
+    }
+    const titleName = currentFilePath
+      ? basename(currentFilePath)
+      : (model.activeFile?.name ?? 'Scribe');
+    document.title = isDirty ? `${titleName} • — Scribe` : `${titleName} — Scribe`;
+  };
 
   // ── Collapsible explorer / TOC (CTX-0539) ────────────────────────────────
   const EXPLORER_COLLAPSED_KEY = 'scribe:explorer-collapsed-v1';
@@ -629,7 +668,7 @@ function mountScribe(): void {
         }
       }
       persistDocument(model);
-      if (saveStatusEl) saveStatusEl.textContent = t('header.save.edited');
+      syncDirtyState(next);
     },
   });
 
@@ -754,7 +793,7 @@ function mountScribe(): void {
     updateChrome();
     updateToc();
     persistDocument(model);
-    if (saveStatusEl) saveStatusEl.textContent = 'Edited';
+    syncDirtyState(finalValue);
     scene.markDirty();
     try {
       queueInlineWysiwyg();
@@ -879,9 +918,7 @@ function mountScribe(): void {
 
   // Chrome updates (file name + save status). Explorer is handled via mountExplorer separately.
   const updateChrome = (): void => {
-    const active = model.activeFile;
-    if (fileNameEl) fileNameEl.textContent = active?.name ?? t('header.fileName.untitled');
-    if (saveStatusEl) saveStatusEl.textContent = t('header.save.saved');
+    syncDirtyState(model.activeFile?.content ?? textArea?.value ?? lastSavedContent);
     // Fallback for legacy file list if explorerNav not present
     if (!explorerNav && fileListEl) {
       fileListEl.innerHTML = '';
@@ -949,6 +986,309 @@ function mountScribe(): void {
     }
   };
 
+  // ── File handlers: Tauri (dialog+fs) + File System Access API fallback ──
+  const applyFileContent = (
+    name: string,
+    content: string,
+    path: string | null,
+    fileHandleParam: unknown,
+  ): void => {
+    const active = model.activeFile;
+    if (active) {
+      try {
+        if (name && name !== active.name) model.renameFile(active.id, name);
+      } catch {
+        // ignore
+      }
+      model.updateContent(active.id, content);
+    } else {
+      const entry = model.addFile(name || t('header.fileName.untitled'), content);
+      model.setActive(entry.id);
+    }
+    currentFilePath = path;
+    currentFileHandle = fileHandleParam;
+    lastSavedContent = content;
+    isDirty = false;
+    lastRenderedValue = content;
+    textArea.value = content;
+    textArea.selectionStart = content.length;
+    textArea.selectionEnd = content.length;
+    const mirror = getMirrorTextarea();
+    if (mirror) {
+      mirror.value = content;
+      mirror.selectionStart = content.length;
+      mirror.selectionEnd = content.length;
+    }
+    markdown.setContent(content);
+    previewScroll.updateContentSize();
+    updateChrome();
+    updateToc();
+    persistDocument(model);
+    scene.markDirty();
+    try {
+      queueInlineWysiwyg();
+    } catch {
+      // ignore
+    }
+    try {
+      queueFocusHighlight();
+    } catch {
+      // ignore
+    }
+    syncDirtyState(content);
+  };
+
+  const handleOpenFile = async (): Promise<void> => {
+    // Tauri path — uses plugin-dialog + plugin-fs
+    if (isTauri()) {
+      try {
+        const res = await openMarkdownFile();
+        if (!res) return;
+        const name = basename(res.path);
+        applyFileContent(name, res.content, res.path, null);
+        return;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[scribe] Tauri open failed', err);
+      }
+    }
+    // Web: File System Access API
+    if (hasFileSystemAccess()) {
+      try {
+        const w = window as unknown as {
+          showOpenFilePicker: (opts: unknown) => Promise<unknown[]>;
+        };
+        const handles = (await w.showOpenFilePicker({
+          // @ts-ignore
+          types: [
+            {
+              description: 'Markdown',
+              accept: { 'text/markdown': ['.md', '.markdown', '.txt'] },
+            },
+          ],
+          multiple: false,
+        })) as Array<{
+          getFile: () => Promise<File>;
+        }>;
+        const pickedHandle = handles[0] as { getFile: () => Promise<File> };
+        if (!pickedHandle) return;
+        const file = await pickedHandle.getFile();
+        const content = await file.text();
+        applyFileContent(file.name, content, file.name, handle);
+        return;
+      } catch (e) {
+        const name = (e as { name?: string })?.name;
+        if (name === 'AbortError') return;
+        // fall through to input fallback
+      }
+    }
+    // Fallback: hidden <input type=file>
+    await new Promise<void>((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.md,.markdown,.txt,text/markdown';
+      input.style.display = 'none';
+      const cleanup = (): void => {
+        input.remove();
+        resolve();
+      };
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        if (!file) {
+          cleanup();
+          return;
+        }
+        const content = await file.text();
+        applyFileContent(file.name, content, file.name, null);
+        cleanup();
+      });
+      input.addEventListener('cancel', cleanup);
+      document.body.appendChild(input);
+      input.click();
+    });
+  };
+
+  const handleSaveFile = async (): Promise<void> => {
+    const content = textArea.value;
+    const activeName = model.activeFile?.name ?? 'Untitled.md';
+    // Tauri: direct write if path known, else dialog
+    if (isTauri()) {
+      if (currentFilePath) {
+        try {
+          await writeMarkdownFileDirect(currentFilePath, content);
+          lastSavedContent = content;
+          syncDirtyState(content);
+          persistDocument(model);
+          return;
+        } catch {
+          // fallback to dialog
+        }
+      }
+      try {
+        const target = await saveMarkdownFile(currentFilePath ?? activeName, content);
+        if (!target) return;
+        currentFilePath = target;
+        try {
+          if (model.activeFile) model.renameFile(model.activeId, basename(target));
+        } catch {
+          // ignore
+        }
+        lastSavedContent = content;
+        syncDirtyState(content);
+        persistDocument(model);
+        updateChrome();
+        return;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[scribe] Tauri save failed', err);
+        return;
+      }
+    }
+    // Web: handle + File System Access API
+    if (currentFileHandle) {
+      try {
+        const h = currentFileHandle as {
+          createWritable: () => Promise<{
+            write: (c: string) => Promise<void>;
+            close: () => Promise<void>;
+          }>;
+        };
+        const writable = await h.createWritable();
+        await writable.write(content);
+        await writable.close();
+        lastSavedContent = content;
+        syncDirtyState(content);
+        persistDocument(model);
+        return;
+      } catch {
+        // fall through to picker
+      }
+    }
+    if (hasFileSystemAccess()) {
+      try {
+        const w = window as unknown as {
+          showSaveFilePicker: (opts: unknown) => Promise<unknown>;
+        };
+        const pickedSaveHandle = (await w.showSaveFilePicker({
+          suggestedName: currentFilePath ? basename(currentFilePath) : activeName,
+          // @ts-ignore
+          types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+        })) as {
+          createWritable: () => Promise<{
+            write: (c: string) => Promise<void>;
+            close: () => Promise<void>;
+          }>;
+          getFile?: () => Promise<File>;
+        };
+        const writable = await pickedSaveHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        currentFileHandle = pickedSaveHandle;
+        try {
+          const file = await pickedSaveHandle.getFile?.();
+          if (file) currentFilePath = file.name;
+          else currentFilePath = activeName;
+        } catch {
+          currentFilePath = activeName;
+        }
+        if (currentFilePath) {
+          try {
+            if (model.activeFile) model.renameFile(model.activeId, basename(currentFilePath));
+          } catch {
+            // ignore
+          }
+        }
+        lastSavedContent = content;
+        syncDirtyState(content);
+        persistDocument(model);
+        updateChrome();
+        return;
+      } catch (e) {
+        const name = (e as { name?: string })?.name;
+        if (name === 'AbortError') return;
+      }
+    }
+    // Fallback: download
+    exportMarkdown(activeName, content);
+    lastSavedContent = content;
+    syncDirtyState(content);
+    persistDocument(model);
+  };
+
+  const handleSaveAsFile = async (): Promise<void> => {
+    const content = textArea.value;
+    const activeName = model.activeFile?.name ?? 'Untitled.md';
+    if (isTauri()) {
+      try {
+        const suggested = currentFilePath ?? activeName;
+        const target = await saveMarkdownFile(suggested, content);
+        if (!target) return;
+        currentFilePath = target;
+        currentFileHandle = null;
+        try {
+          if (model.activeFile) model.renameFile(model.activeId, basename(target));
+        } catch {
+          // ignore
+        }
+        lastSavedContent = content;
+        syncDirtyState(content);
+        persistDocument(model);
+        updateChrome();
+        return;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[scribe] Tauri saveAs failed', err);
+        return;
+      }
+    }
+    if (hasFileSystemAccess()) {
+      try {
+        const w = window as unknown as {
+          showSaveFilePicker: (opts: unknown) => Promise<unknown>;
+        };
+        const pickedSaveAsHandle = (await w.showSaveFilePicker({
+          suggestedName: activeName,
+          // @ts-ignore
+          types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+        })) as {
+          createWritable: () => Promise<{
+            write: (c: string) => Promise<void>;
+            close: () => Promise<void>;
+          }>;
+          getFile?: () => Promise<File>;
+        };
+        const writable = await pickedSaveAsHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        currentFileHandle = pickedSaveAsHandle;
+        try {
+          const file = await pickedSaveAsHandle.getFile?.();
+          if (file) currentFilePath = file.name;
+        } catch {
+          currentFilePath = activeName;
+        }
+        try {
+          if (model.activeFile && currentFilePath)
+            model.renameFile(model.activeId, basename(currentFilePath));
+        } catch {
+          // ignore
+        }
+        lastSavedContent = content;
+        syncDirtyState(content);
+        persistDocument(model);
+        updateChrome();
+        return;
+      } catch (e) {
+        const name = (e as { name?: string })?.name;
+        if (name === 'AbortError') return;
+      }
+    }
+    exportMarkdown(activeName, content);
+    lastSavedContent = content;
+    syncDirtyState(content);
+    persistDocument(model);
+  };
+
   // ── i18n chrome sync ────────────────────────────────────────────────
   const syncLangPickers = (locale: Locale): void => {
     if (langPicker) langPicker.value = locale;
@@ -1006,6 +1346,23 @@ function mountScribe(): void {
       menuToggleEl.setAttribute('aria-label', t('header.menu.toggleExplorer', locale));
     if (settingsToggle)
       settingsToggle.setAttribute('aria-label', t('header.menu.toggleSettings', locale));
+    const fileGroup = document.getElementById('scribe-file-group') as HTMLElement | null;
+    if (fileGroup) fileGroup.setAttribute('aria-label', t('header.file.group', locale));
+    if (openFileBtn) {
+      openFileBtn.title = t('header.file.open.title', locale);
+      openFileBtn.setAttribute('aria-label', t('header.file.open', locale));
+      openFileBtn.textContent = t('header.file.open', locale);
+    }
+    if (saveFileBtn) {
+      saveFileBtn.title = t('header.file.save.title', locale);
+      saveFileBtn.setAttribute('aria-label', t('header.file.save', locale));
+      saveFileBtn.textContent = t('header.file.save', locale);
+    }
+    if (saveAsFileBtn) {
+      saveAsFileBtn.title = t('header.file.saveAs.title', locale);
+      saveAsFileBtn.setAttribute('aria-label', t('header.file.saveAs', locale));
+      saveAsFileBtn.textContent = t('header.file.saveAs', locale);
+    }
     const exportGroup = document.getElementById('scribe-export-group') as HTMLElement | null;
     if (exportGroup) exportGroup.setAttribute('aria-label', t('header.export.group', locale));
     if (exportMdBtn) {
@@ -2718,7 +3075,7 @@ function mountScribe(): void {
     model.updateContent(model.activeId, snap.value);
     renderMarkdownImmediate(snap.value);
     persistDocument(model);
-    if (saveStatusEl) saveStatusEl.textContent = 'Edited';
+    syncDirtyState(snap.value);
     scene.markDirty();
   };
 
@@ -2784,7 +3141,7 @@ function mountScribe(): void {
     model.updateContent(model.activeId, next.value);
     renderMarkdownImmediate(next.value);
     persistDocument(model);
-    if (saveStatusEl) saveStatusEl.textContent = t('header.save.edited');
+    syncDirtyState(next.value);
     scene.markDirty();
     setTimeout(() => {
       const m = getMirrorTextarea() as HTMLTextAreaElement | null;
@@ -3059,6 +3416,68 @@ function mountScribe(): void {
     }
   };
   bindExport();
+
+  // File bindings: Open / Save / Save As + Tauri overrides
+  openFileBtn?.addEventListener('click', () => {
+    void handleOpenFile();
+  });
+  saveFileBtn?.addEventListener('click', () => {
+    void handleSaveFile();
+  });
+  saveAsFileBtn?.addEventListener('click', () => {
+    void handleSaveAsFile();
+  });
+
+  // Keyboard: Ctrl/Cmd+O open, Ctrl/Cmd+S save, Ctrl/Cmd+Shift+S saveAs
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+  const handleFileShortcut = (e: KeyboardEvent): boolean => {
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+    if (!mod) return false;
+    const key = e.key.toLowerCase();
+    if (key === 'o' && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      void handleOpenFile();
+      return true;
+    }
+    if (key === 's' && !e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      void handleSaveFile();
+      return true;
+    }
+    if (key === 's' && e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      void handleSaveAsFile();
+      return true;
+    }
+    return false;
+  };
+  // Prefer window capture before toolbar shortcuts, so file save isn't swallowed
+  window.addEventListener('keydown', (e) => {
+    if (handleFileShortcut(e)) return;
+  });
+  // Also wire Scene channel for when canvas has focus (VectoJS forwards keydown)
+  try {
+    scene.on(
+      'keydown',
+      (e: { key: string; ctrlKey: boolean; metaKey: boolean; nativeEvent: KeyboardEvent }) => {
+        if (handleFileShortcut(e.nativeEvent)) e.nativeEvent.preventDefault();
+      },
+    );
+  } catch {
+    // ignore if scene not ready
+  }
+
+  // Expose for e2e / manual testing
+  (window as unknown as { __scribeOpenFile: () => Promise<void> }).__scribeOpenFile =
+    handleOpenFile;
+  (window as unknown as { __scribeSaveFile: () => Promise<void> }).__scribeSaveFile =
+    handleSaveFile;
+  (window as unknown as { __scribeSaveAsFile: () => Promise<void> }).__scribeSaveAsFile =
+    handleSaveAsFile;
+  (window as unknown as { __scribeCurrentPath: () => string | null }).__scribeCurrentPath = () =>
+    currentFilePath;
+  (window as unknown as { __scribeIsDirty: () => boolean }).__scribeIsDirty = () => isDirty;
+  (window as unknown as { __scribeIsTauri: () => boolean }).__scribeIsTauri = isTauri;
 
   // Initial chrome + toc
   updateChrome();

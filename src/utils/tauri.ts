@@ -49,6 +49,18 @@ export async function saveMarkdownFile(
   return target;
 }
 
+export async function writeMarkdownFileDirect(path: string, content: string): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+    await writeTextFile(path, content);
+    return;
+  } catch {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke<void>('write_markdown_file', { path, content });
+  }
+}
+
 /**
  * Fallback via Rust commands (`read_markdown_file` / `write_markdown_file`)
  * when the JS plugin scope is too narrow. Uses `invoke` directly.
