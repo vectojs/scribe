@@ -1,6 +1,7 @@
 import { Scene } from '@vectojs/core';
 import { Markdown, PRESET_THEMES } from '@vectojs/markdown';
 import { DOCUMENT_SCROLL_PHYSICS, ScrollView, TextArea } from '@vectojs/ui';
+import { onMermaidCacheUpdate, registerMermaidRenderer } from './mermaid';
 
 import {
   debounce,
@@ -841,6 +842,15 @@ function mountScribe(): void {
     }
   };
 
+  // Mermaid spike — must register before Markdown instantiation so the
+  // first preview render can prefetch the chunk and fallback to CodeBlock
+  // until the async SVG is ready (handled via onMermaidCacheUpdate below).
+  try {
+    registerMermaidRenderer();
+  } catch (e) {
+    console.error('[mermaid] registration failed', e);
+  }
+
   // Markdown preview — right pane inside ScrollView with document-like physics (no bounce)
   const initialPreviewWidth = Math.max(320, 600);
   const markdown = new Markdown(textArea.value, {
@@ -855,6 +865,32 @@ function mountScribe(): void {
     scrollPhysics: DOCUMENT_SCROLL_PHYSICS,
   });
   previewScroll.add(markdown);
+
+  // When a mermaid diagram finishes async rendering, its SVG is cached and we
+  // rebuild markdown so the cached SVGEntity replaces the CodeBlock placeholder.
+  // Placed AFTER previewScroll so the closure captures the initialized variable.
+  try {
+    onMermaidCacheUpdate(() => {
+      try {
+        markdown.setContent(textArea.value);
+        previewScroll.updateContentSize();
+        scene.markDirty();
+      } catch {
+        // ignore
+      }
+    });
+    window.addEventListener('scribe:mermaid-ready', () => {
+      try {
+        markdown.setContent(textArea.value);
+        previewScroll.updateContentSize();
+        scene.markDirty();
+      } catch {
+        // ignore
+      }
+    });
+  } catch {
+    // ignore
+  }
 
   // Wire link navigation: external → new tab, internal #anchor → preview scroll
   const handleLinkClick = (url: string): void => {
