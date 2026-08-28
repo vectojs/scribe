@@ -4451,8 +4451,30 @@ function mountScribe(): void {
   });
 
   // Dismiss menu on left-click / Escape / drawer interactions — keep text selection left-drag smooth
-  // (we do not intercept pointerdown for button 0).
+  // (we do not intercept pointerdown for button 0). Right-click (button 2) must not dismiss
+  // the opening menu: the auxclick that follows contextmenu would otherwise race with
+  // showContextMenu's deferred attachment and hide it instantly.
   document.addEventListener('click', (e) => {
+    if ((e as MouseEvent).button === 2) return;
+    const tgt = e.target as HTMLElement | null;
+    if (tgt?.closest?.('#scribe-context-menu')) return;
+    if (isContextMenuVisible()) hideContextMenu();
+  });
+  document.addEventListener('auxclick', (e) => {
+    if ((e as MouseEvent).button === 2) return;
+    const tgt = e.target as HTMLElement | null;
+    if (tgt?.closest?.('#scribe-context-menu')) return;
+    if (isContextMenuVisible()) hideContextMenu();
+  });
+  // Any pointerdown outside menu should hide, but not right-click (button 2) which opens it.
+  document.addEventListener('pointerdown', (e) => {
+    if ((e as PointerEvent).button === 2) return;
+    const tgt = e.target as HTMLElement | null;
+    if (tgt?.closest?.('#scribe-context-menu')) return;
+    if (isContextMenuVisible()) hideContextMenu();
+  });
+  stage.addEventListener('pointerdown', (e) => {
+    if ((e as PointerEvent).button === 2) return;
     const tgt = e.target as HTMLElement | null;
     if (tgt?.closest?.('#scribe-context-menu')) return;
     if (isContextMenuVisible()) hideContextMenu();
@@ -4461,7 +4483,10 @@ function mountScribe(): void {
     if (e.key === 'Escape' && isContextMenuVisible()) hideContextMenu();
   });
   // Close when drawer/backdrop opens or settings change
-  backdrop?.addEventListener('click', () => hideContextMenu());
+  backdrop?.addEventListener('click', (e) => {
+    if ((e as MouseEvent).button === 2) return;
+    hideContextMenu();
+  });
   // When locale changes, hide stale menu with old labels
   subscribe(() => hideContextMenu());
 
