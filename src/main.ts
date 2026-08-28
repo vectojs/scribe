@@ -1,7 +1,13 @@
 import { Scene } from '@vectojs/core';
-import { Markdown, PRESET_THEMES } from '@vectojs/markdown';
+import { ensureFencedBlockRenderer, Markdown, PRESET_THEMES } from '@vectojs/markdown';
 import { DOCUMENT_SCROLL_PHYSICS, ScrollView, TextArea } from '@vectojs/ui';
-import { onMermaidCacheUpdate, registerMermaidRenderer } from './mermaid';
+import {
+  ensureMermaid,
+  isMermaidLoading,
+  onMermaidCacheUpdate,
+  onMermaidLoadingChange,
+  registerMermaidRenderer,
+} from './mermaid';
 
 import {
   debounce,
@@ -221,6 +227,9 @@ function mountScribe(): void {
   };
   // Word-count updater is assigned after TextArea is created (needs closure over it)
   let updateWordCount: () => void = () => {};
+  // CTX-0565: track mermaid loading visibility so status bar shows a hint instead
+  // of silently showing CodeBlock while the chunk downloads.
+  let mermaidLoadingActive = false;
 
   const model = createDocument();
   // Localize default file names for fresh installs when locale is zh-CN
@@ -836,6 +845,12 @@ function mountScribe(): void {
         } catch {
           statusRightEl.textContent = `${selLen} selected`;
         }
+      } else if (mermaidLoadingActive) {
+        try {
+          statusRightEl.textContent = t('status.mermaid.loading');
+        } catch {
+          statusRightEl.textContent = '⟳ Mermaid loading… ~1s first time';
+        }
       } else {
         statusRightEl.textContent = '';
       }
@@ -845,10 +860,24 @@ function mountScribe(): void {
   // Mermaid spike — must register before Markdown instantiation so the
   // first preview render can prefetch the chunk and fallback to CodeBlock
   // until the async SVG is ready (handled via onMermaidCacheUpdate below).
+  // CTX-0565: make loading obvious and prefetch earlier.
   try {
     registerMermaidRenderer();
   } catch (e) {
     console.error('[mermaid] registration failed', e);
+  }
+
+  // Prefetch immediately if the active doc contains mermaid fences — don't
+  // wait for the first Markdown render to trigger ensureFencedBlockRenderer.
+  // This hides ~1s of the dynamic import during the first paint window.
+  try {
+    const activeContent = model.activeFile?.content ?? textArea.value ?? '';
+    if (activeContent.includes('```mermaid')) {
+      void ensureFencedBlockRenderer('mermaid').catch(() => {});
+      void ensureMermaid().catch(() => {});
+    }
+  } catch {
+    // ignore
   }
 
   // Markdown preview — right pane inside ScrollView with document-like physics (no bounce)
@@ -867,8 +896,9 @@ function mountScribe(): void {
   previewScroll.add(markdown);
 
   // When a mermaid diagram finishes async rendering, its SVG is cached and we
-  // rebuild markdown so the cached SVGEntity replaces the CodeBlock placeholder.
-  // Placed AFTER previewScroll so the closure captures the initialized variable.
+  // rebuild markdown so the cached SVGEntity replaces the placeholder.
+  // Also drive a visible status-bar hint while diagrams are loading (CTX-0565).
+  // Placed AFTER previewScroll so the closures capture the initialized variable.
   try {
     onMermaidCacheUpdate(() => {
       try {
@@ -883,6 +913,40 @@ function mountScribe(): void {
       try {
         markdown.setContent(textArea.value);
         previewScroll.updateContentSize();
+        scene.markDirty();
+      } catch {
+        // ignore
+      }
+    });
+    try {
+      onMermaidLoadingChange((loading) => {
+        mermaidLoadingActive = loading;
+        try {
+          updateWordCount();
+        } catch {
+          // ignore
+        }
+        try {
+          scene.markDirty();
+        } catch {
+          // ignore
+        }
+      });
+      mermaidLoadingActive = isMermaidLoading();
+      if (mermaidLoadingActive) {
+        try {
+          updateWordCount();
+        } catch {
+          // ignore
+        }
+      }
+    } catch {
+      // ignore
+    }
+    window.addEventListener('scribe:mermaid-loading', () => {
+      try {
+        mermaidLoadingActive = true;
+        updateWordCount();
         scene.markDirty();
       } catch {
         // ignore
