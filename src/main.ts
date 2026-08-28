@@ -2319,6 +2319,8 @@ function mountScribe(): void {
   previewScroll.on('pointercancel', endPreviewDrag);
   previewScroll.on('pointermove', () => {
     if (!scrollSyncEnabled) return;
+    // Gate when editor has active selection (dragging to select text in TextArea) — otherwise preview→editor sync moves scrollTop mid-drag
+    if (textArea.selectionStart !== textArea.selectionEnd) return;
     const sel = typeof window !== 'undefined' ? window.getSelection() : null;
     const hasSelection = !!sel && sel.rangeCount > 0 && !sel.isCollapsed;
     if (hasSelection) return;
@@ -2688,6 +2690,102 @@ function mountScribe(): void {
   // (rAF loop already does, but listen to native scroll for instant)
   const scrollbarMirror = getMirrorTextarea();
   scrollbarMirror?.addEventListener('scroll', updateScrollbars);
+
+  // ── Editor left-drag live selection sync (CTX-0564) ───────────────────────
+  // Mirror textarea native drag updates selectionStart/End live (measured 8,16,25,30 mid-drag), but
+  // Scene's 'select' forward only fires at mouseup, so TextArea (canvas) stayed collapsed until up.
+  // Sync continuously via pointermove/mousemove on mirror and via selectionchange, throttled to rAF.
+  // Also gate preview→editor scroll sync during editor drag (above) to avoid scrollTop fighting selection.
+  let editorDragActive = false;
+  let editorDragRaf = 0;
+  const syncEditorSelectionFromMirror = (): void => {
+    const mirror = getMirrorTextarea();
+    if (!mirror) return;
+    const start = mirror.selectionStart ?? 0;
+    const end = mirror.selectionEnd ?? 0;
+    if (textArea.selectionStart === start && textArea.selectionEnd === end) return;
+    textArea.selectionStart = start;
+    textArea.selectionEnd = end;
+    scene.markDirty();
+    try {
+      updateWordCount();
+    } catch {}
+    try {
+      queueInlineWysiwyg();
+    } catch {}
+    try {
+      queueFocusHighlight();
+    } catch {}
+  };
+  const queueEditorDragSync = (): void => {
+    if (editorDragRaf) return;
+    editorDragRaf = requestAnimationFrame(() => {
+      editorDragRaf = 0;
+      syncEditorSelectionFromMirror();
+    });
+  };
+  const attachMirrorDragSync = (): void => {
+    const mirror = getMirrorTextarea();
+    if (!mirror) return;
+    if ((mirror as unknown as { __scribeDragSyncAttached?: boolean }).__scribeDragSyncAttached)
+      return;
+    (mirror as unknown as { __scribeDragSyncAttached?: boolean }).__scribeDragSyncAttached = true;
+    mirror.addEventListener('pointerdown', () => {
+      editorDragActive = true;
+    });
+    mirror.addEventListener('mousedown', () => {
+      editorDragActive = true;
+    });
+    const onMirrorMove = (): void => {
+      if (!editorDragActive) return;
+      queueEditorDragSync();
+    };
+    mirror.addEventListener('pointermove', onMirrorMove);
+    mirror.addEventListener('mousemove', onMirrorMove);
+    mirror.addEventListener('select', () => {
+      queueEditorDragSync();
+    });
+    const endDrag = (): void => {
+      if (!editorDragActive) return;
+      editorDragActive = false;
+      if (editorDragRaf) {
+        cancelAnimationFrame(editorDragRaf);
+        editorDragRaf = 0;
+      }
+      syncEditorSelectionFromMirror();
+    };
+    mirror.addEventListener('pointerup', endDrag);
+    mirror.addEventListener('mouseup', endDrag);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('blur', endDrag);
+    // Also sync on selectionchange when mirror is active (covers shift+arrow and drag via selectionchange)
+    document.addEventListener('selectionchange', () => {
+      const active = document.activeElement as HTMLElement | null;
+      if (active === mirror || !!active?.closest('[data-vecto-a11y-root], #scribe-a11y-root')) {
+        if (editorDragActive) queueEditorDragSync();
+        else {
+          // For keyboard selection changes, sync without drag flag but still throttled
+          queueEditorDragSync();
+        }
+      }
+    });
+  };
+  attachMirrorDragSync();
+  requestAnimationFrame(() => attachMirrorDragSync());
+  window.setTimeout(() => attachMirrorDragSync(), 100);
+  window.setTimeout(() => attachMirrorDragSync(), 500);
+  try {
+    const a11yRootEl = document.querySelector('[data-vecto-a11y-root]') as HTMLElement | null;
+    const fallbackRoot = document.getElementById('scribe-a11y-root') as HTMLElement | null;
+    const watchRoot = a11yRootEl ?? fallbackRoot;
+    if (watchRoot && typeof MutationObserver !== 'undefined') {
+      const obs = new MutationObserver(() => attachMirrorDragSync());
+      const parent = watchRoot.parentElement ?? document.body;
+      obs.observe(parent, { childList: true, subtree: true });
+      obs.observe(watchRoot, { childList: true, subtree: true });
+    }
+  } catch {}
   // Expose for e2e/debug
   (window as unknown as { __scribeUpdateScrollbars: () => void }).__scribeUpdateScrollbars =
     updateScrollbars;
