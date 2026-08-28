@@ -30,7 +30,8 @@
     "@vectojs/markdown": "0.23.1",
     "@vectojs/styles": "0.3.3",
     "@vectojs/ui": "2.20.2",
-    "marked": "^18.0.10"
+    "marked": "^18.0.10",
+    "mermaid": "11.12.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",

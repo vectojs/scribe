@@ -736,7 +736,54 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit.
 
 ---
 
-## 18. End — 结束
+## 18. Mermaid diagrams — 流程图/时序图/甘特图 (spike, lazy)
+
+> Spike note: `mermaid` fences are rendered via `@vectojs/markdown` fenced registry + `mermaid` 11.x. First paint shows the source as a CodeBlock (readable fallback); once the `mermaid` chunk loads (`ensureFencedBlockRenderer` → `mermaid.render`), the cached SVG replaces the CodeBlock. Rebuild is coalesced via `fencedRebuildPending` + `onMermaidCacheUpdate`. Exported HTML emits `<pre class="mermaid">` + CDN script so diagrams survive outside canvas. 中文提示：Mermaid 图表为 spike，按需懒加载，首屏回退为代码块。
+
+### 18.1 Flowchart — 流程图
+
+```mermaid
+flowchart TD
+  A[Start 开始] --> B{Is it mermaid? 是否为 Mermaid?}
+  B -->|Yes 是| C[Render SVG 渲染 SVG]
+  B -->|No 否| D[CodeBlock 代码块]
+  C --> E[End 结束]
+  D --> E
+```
+
+### 18.2 Sequence — 时序图
+
+```mermaid
+sequenceDiagram
+  participant Alice
+  participant Bob
+  participant Scribe as Scribe (Canvas)
+  Alice->>Bob: Hello Bob, 你好
+  Bob-->>Scribe: render mermaid via SVGEntity
+  Scribe-->>Bob: SVG cached, markDirty
+  Bob->>Alice: Ready 就绪
+```
+
+### 18.3 Gantt — 甘特图
+
+```mermaid
+gantt
+  title Scribe Mermaid Spike
+  dateFormat YYYY-MM-DD
+  section Design 设计
+  Spec spike :done, 2026-08-20, 2026-08-22
+  Canvas preview :active, 2026-08-27, 2026-08-28
+  section Export 导出
+  HTML/PDF : 2026-08-28, 3d
+  section Polish 打磨
+  Bundle & a11y : 2026-08-29, 2d
+```
+
+Fallback note: If the mermaid chunk fails to load (network/XSS sanitization), the fences remain as plain code blocks — still readable, not blank. Theme `dark`/`default` syncs via `document.documentElement.dataset.theme` and `securityLevel:'strict'` (DOMPurify).
+
+---
+
+## 19. End — 结束
 
 If every section above is readable, the `@vectojs/markdown` + `@vectojs/tex` pipeline is complete. Edit this file via the left **Explorer** → open `Kitchen Sink.md`, toggle themes via the **Theme** picker (githubLight / githubDark / dracula / solarizedLight / solarizedDark), collapse the file tree via the **◀/▶** button in the header, and check the **Outline** panel for headings 1–6.
 
