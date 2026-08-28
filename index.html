@@ -1584,6 +1584,189 @@
         }
       }
 
+      /* ── Visible thin scrollbars (Obsidian/StackEdit — 8px, always visible) ── */
+      #scribe-explorer,
+      #scribe-toc,
+      #scribe-toc-list,
+      .scribe-settings__panes,
+      .scribe-settings__nav,
+      .scribe-settings__body {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(107, 98, 86, 0.35) transparent;
+      }
+
+      #scribe-explorer::-webkit-scrollbar,
+      #scribe-toc::-webkit-scrollbar,
+      #scribe-toc-list::-webkit-scrollbar,
+      .scribe-settings__panes::-webkit-scrollbar,
+      .scribe-settings__nav::-webkit-scrollbar,
+      .scribe-settings__body::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+
+      #scribe-explorer::-webkit-scrollbar-track,
+      #scribe-toc::-webkit-scrollbar-track,
+      #scribe-toc-list::-webkit-scrollbar-track,
+      .scribe-settings__panes::-webkit-scrollbar-track,
+      .scribe-settings__nav::-webkit-scrollbar-track,
+      .scribe-settings__body::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      #scribe-explorer::-webkit-scrollbar-thumb,
+      #scribe-toc::-webkit-scrollbar-thumb,
+      #scribe-toc-list::-webkit-scrollbar-thumb,
+      .scribe-settings__panes::-webkit-scrollbar-thumb,
+      .scribe-settings__nav::-webkit-scrollbar-thumb,
+      .scribe-settings__body::-webkit-scrollbar-thumb {
+        background-color: rgba(107, 98, 86, 0.35);
+        border-radius: 4px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+      }
+
+      #scribe-explorer::-webkit-scrollbar-thumb:hover,
+      #scribe-toc::-webkit-scrollbar-thumb:hover,
+      #scribe-toc-list::-webkit-scrollbar-thumb:hover,
+      .scribe-settings__panes::-webkit-scrollbar-thumb:hover,
+      .scribe-settings__nav::-webkit-scrollbar-thumb:hover,
+      .scribe-settings__body::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(107, 98, 86, 0.52);
+      }
+
+      html[data-theme="dark"] #scribe-explorer,
+      html[data-theme="dark"] #scribe-toc,
+      html[data-theme="dark"] #scribe-toc-list,
+      html[data-theme="dark"] .scribe-settings__panes,
+      html[data-theme="dark"] .scribe-settings__nav,
+      html[data-theme="dark"] .scribe-settings__body {
+        scrollbar-color: rgba(154, 160, 168, 0.35) transparent;
+      }
+
+      html[data-theme="dark"] #scribe-explorer::-webkit-scrollbar-thumb,
+      html[data-theme="dark"] #scribe-toc::-webkit-scrollbar-thumb,
+      html[data-theme="dark"] #scribe-toc-list::-webkit-scrollbar-thumb,
+      html[data-theme="dark"] .scribe-settings__panes::-webkit-scrollbar-thumb,
+      html[data-theme="dark"] .scribe-settings__nav::-webkit-scrollbar-thumb,
+      html[data-theme="dark"] .scribe-settings__body::-webkit-scrollbar-thumb {
+        background-color: rgba(154, 160, 168, 0.35);
+      }
+
+      html[data-theme="dark"] #scribe-explorer::-webkit-scrollbar-thumb:hover,
+      html[data-theme="dark"] #scribe-toc::-webkit-scrollbar-thumb:hover,
+      html[data-theme="dark"] #scribe-toc-list::-webkit-scrollbar-thumb:hover,
+      html[data-theme="dark"]
+        .scribe-settings__panes::-webkit-scrollbar-thumb:hover,
+      html[data-theme="dark"]
+        .scribe-settings__nav::-webkit-scrollbar-thumb:hover,
+      html[data-theme="dark"]
+        .scribe-settings__body::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(154, 160, 168, 0.52);
+      }
+
+      /* ── Canvas overlay scrollbars (preview + editor) — 8px, always visible, high contrast ── */
+      .scribe-scrollbar {
+        position: absolute;
+        width: 8px;
+        z-index: 6;
+        pointer-events: none;
+        opacity: 1;
+        background: transparent;
+        border-radius: 4px;
+        transition: opacity 120ms;
+      }
+
+      .scribe-scrollbar[hidden] {
+        display: none !important;
+      }
+
+      .scribe-scrollbar__thumb {
+        position: absolute;
+        left: 0;
+        right: 0;
+        width: 8px;
+        background: rgba(107, 98, 86, 0.32);
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        background-clip: padding-box;
+        opacity: 1;
+        min-height: 24px;
+        pointer-events: auto;
+        cursor: pointer;
+        transition: background 120ms;
+      }
+
+      .scribe-scrollbar__thumb:hover {
+        background: rgba(107, 98, 86, 0.52);
+      }
+
+      .scribe-scrollbar__thumb:active {
+        background: rgba(107, 98, 86, 0.64);
+      }
+
+      html[data-theme="dark"] .scribe-scrollbar__thumb {
+        background: rgba(154, 160, 168, 0.32);
+        border-color: rgba(0, 0, 0, 0.22);
+      }
+
+      html[data-theme="dark"] .scribe-scrollbar__thumb:hover {
+        background: rgba(154, 160, 168, 0.52);
+      }
+
+      html[data-theme="dark"] .scribe-scrollbar__thumb:active {
+        background: rgba(154, 160, 168, 0.64);
+      }
+
+      /* ── Status bar (Typora/Obsidian — bottom-left word count) ── */
+      #scribe-statusbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        height: 22px;
+        min-height: 22px;
+        padding: 0 10px 0 12px;
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+        border-top: var(--hairline) solid var(--scribe-border);
+        background: var(--scribe-bg);
+        color: var(--scribe-muted-2);
+        font-size: 11px;
+        font-family: system-ui, sans-serif;
+        line-height: 1;
+        flex-shrink: 0;
+        z-index: 5;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      #scribe-wordcount,
+      #scribe-status-right {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      #scribe-wordcount {
+        flex: 1 1 auto;
+        min-width: 0;
+        text-align: left;
+      }
+
+      #scribe-status-right {
+        flex: 0 0 auto;
+        color: var(--scribe-muted);
+        font-size: 11px;
+      }
+
+      @media print {
+        #scribe-statusbar,
+        .scribe-scrollbar {
+          display: none !important;
+        }
+      }
+
       @media print {
         #scribe-ribbon,
         #scribe-header,
@@ -1616,7 +1799,9 @@
             aria-pressed="false"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+              <path
+                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"
+              />
               <polyline points="14 2 14 8 20 8" />
               <line x1="16" y1="13" x2="8" y2="13" />
               <line x1="16" y1="17" x2="8" y2="17" />
@@ -1695,636 +1880,669 @@
         </div>
       </aside>
       <div id="scribe-app">
-      <header id="scribe-header" aria-label="Scribe 顶部栏">
-        <div
-          style="
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            min-width: 0;
-            flex: 1 1 auto;
-          "
-        >
-          <button
-            id="scribe-menu-toggle"
-            class="scribe-icon-btn"
-            type="button"
-            aria-label="切换文件管理器"
-            aria-expanded="false"
-            aria-controls="scribe-explorer"
-          >
-            ☰
-          </button>
-          <button
-            id="scribe-toggle-explorer"
-            class="scribe-icon-btn scribe-collapse-btn"
-            type="button"
-            aria-label="收起文件管理器"
-            aria-expanded="true"
-            aria-controls="scribe-explorer"
-            title="切换文件管理器（收起）"
-          >
-            ◀
-          </button>
-          <button
-            id="scribe-toggle-toc"
-            class="scribe-icon-btn scribe-collapse-btn"
-            type="button"
-            aria-label="收起大纲"
-            aria-expanded="true"
-            aria-controls="scribe-toc"
-            title="切换大纲"
-          >
-            ☷
-          </button>
-          <h1>Scribe</h1>
-          <span id="scribe-file-name" aria-live="polite">未命名.md</span>
-        </div>
-        <div
-          style="display: flex; align-items: center; gap: 12px; flex-shrink: 0"
-        >
-          <span id="scribe-save-status" aria-live="polite">已保存</span>
-          <div id="scribe-export-group" aria-label="导出">
-            <button
-              id="scribe-export-md"
-              type="button"
-              title="下载 Markdown"
-              aria-label="下载 Markdown"
-            >
-              MD
-            </button>
-            <button
-              id="scribe-export-html"
-              type="button"
-              title="下载 HTML"
-              aria-label="下载 HTML"
-            >
-              HTML
-            </button>
-            <button
-              id="scribe-export-pdf"
-              type="button"
-              title="打印 / 保存 PDF"
-              aria-label="打印 PDF"
-            >
-              PDF
-            </button>
-          </div>
-        </div>
-      </header>
-      <!-- Toolbar: StackEdit/Typora familiar row, HTML buttons with inline SVG (cdn-vectojs/scribe/*) -->
-      <div id="scribe-toolbar" role="toolbar" aria-label="Markdown 格式">
-        <div class="toolbar-group" aria-label="行内">
-          <button
-            type="button"
-            data-action="bold"
-            title="加粗 (Ctrl+B)"
-            aria-label="加粗"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                d="M5 3h3.2c1.7 0 2.8 1 2.8 2.4 0 .9-.4 1.6-1.2 2 1 .4 1.6 1.2 1.6 2.2 0 1.6-1.2 2.4-3 2.4H5V3Zm1.5 4.8h2c.7 0 1.2-.4 1.2-1.1 0-.7-.5-1.1-1.2-1.1h-2v2.2Zm0 1.4v2.4h2.3c.7 0 1.3-.4 1.3-1.2 0-.7-.5-1.2-1.4-1.2h-2.2Z"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            data-action="italic"
-            title="斜体 (Ctrl+I)"
-            aria-label="斜体"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                d="M7 3h4l-.6 1.5H9l-2.4 6H8l-.6 1.5H3l.6-1.5H5l2.4-6H6L7 3Z"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            data-action="code"
-            title="行内代码 (Ctrl+E)"
-            aria-label="行内代码"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                d="M6 4 3.2 8 6 12l-.9.7L1.8 8 5.1 3.3 6 4Zm4 0 2.8 4L10 12l.9.7L14.2 8 10.9 3.3 10 4ZM8.3 2.5l1.4.4-3.4 10-1.4-.4 3.4-10Z"
-              />
-            </svg>
-          </button>
-        </div>
-        <div class="toolbar-group" aria-label="块">
-          <button
-            type="button"
-            data-action="h1"
-            title="标题 1 (Ctrl+1)"
-            aria-label="标题 1"
-          >
-            H1
-          </button>
-          <button
-            type="button"
-            data-action="h2"
-            title="标题 2 (Ctrl+2)"
-            aria-label="标题 2"
-          >
-            H2
-          </button>
-          <button
-            type="button"
-            data-action="h3"
-            title="标题 3 (Ctrl+3)"
-            aria-label="标题 3"
-          >
-            H3
-          </button>
-          <button
-            type="button"
-            data-action="quote"
-            title="引用 (Ctrl+Q)"
-            aria-label="引用"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                d="M4 4h2v3H4V4Zm6 0h2v3H10V4ZM4 8h2v4H4V8Zm6 0h2v4h-2V8Z"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            data-action="codeBlock"
-            title="代码块 (Ctrl+Shift+C)"
-            aria-label="代码块"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M2 5h12v1H2V5Zm0 4h12v1H2V9Zm0 4h8v1H2v-1Z" />
-              <path
-                d="M4 3.5 2.5 5 4 6.5"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.1"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </button>
-        </div>
-        <div class="toolbar-group" aria-label="插入">
-          <button
-            type="button"
-            data-action="link"
-            title="链接 (Ctrl+K)"
-            aria-label="链接"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                d="M6.7 9.3 5.3 10.7A2.2 2.2 0 0 1 2.2 7.6L3.7 6l1 1-1.5 1.5a.7.7 0 0 0 1 1L5.7 8l1 1ZM8 5.7 9.3 4.3A2.2 2.2 0 0 1 12.4 7.4l-1.4 1.4-1-1L11.5 6.3a.7.7 0 0 0-1-1L9 6.7 8 5.7ZM5.8 10.2l4.4-4.4.9.9-4.4 4.4-.9-.9Z"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            data-action="image"
-            title="图片 (Ctrl+Shift+I)"
-            aria-label="图片"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                d="M3 3h10v10H3V3Zm1 1v8h8V4H4Zm2 2.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2ZM4 11l2.2-2.8 2 2 1.3-1.7L12 11H4Z"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            data-action="table"
-            title="表格 (Ctrl+Shift+T)"
-            aria-label="表格"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                d="M3 3h10v10H3V3Zm1 1v8h8V4H4Zm0 3h8v1H4V7Zm0 3h8v1H4v-1ZM7 4v8h1V4H7Z"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            data-action="math"
-            title="行内公式 (Ctrl+Shift+M)"
-            aria-label="公式"
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                d="M4 7h8v1H4V7Zm2 3h4v1H6V10Zm-2-6h1v2h2V4h1v2h2V4h1v2h1v1h-1v2h1v1h-1v2h-1v-2H9v2H8v-2H6v2H5v-2H4v-1h1V7H4V6Z"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            data-action="mathBlock"
-            title="公式块"
-            aria-label="公式块"
-          >
-            $$
-          </button>
-        </div>
-        <div class="toolbar-group" aria-label="视图模式">
-          <button
-            type="button"
-            id="scribe-wysiwyg-toggle"
-            title="切换到实时 / 所见即所得 (Typora)"
-            aria-label="切换所见即所得模式"
-            aria-pressed="false"
-          >
-            实时
-          </button>
-          <button
-            type="button"
-            id="scribe-focus-toggle"
-            title="切换专注模式（高亮当前段落）"
-            aria-label="切换专注模式"
-            aria-pressed="false"
-          >
-            ◎ 专注
-          </button>
-        </div>
-        <select
-          id="scribe-theme-picker"
-          aria-label="Markdown 主题"
-          title="Markdown 主题"
-        >
-          <option value="githubLight">GitHub Light</option>
-          <option value="githubDark">GitHub Dark</option>
-          <option value="dracula">Dracula</option>
-          <option value="solarizedLight">Solarized Light</option>
-          <option value="solarizedDark">Solarized Dark</option>
-        </select>
-        <button
-          type="button"
-          id="scribe-theme-toggle"
-          title="切换主题"
-          aria-label="切换主题"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true" width="14" height="14">
-            <path
-              d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2Zm0 1a5 5 0 0 1 4.3 7.5A5 5 0 0 1 8 3Z"
-            />
-          </svg>
-          主题
-        </button>
-        <select id="scribe-lang-picker" aria-label="语言" title="语言">
-          <option value="zh-CN">简体中文</option>
-          <option value="en">English</option>
-        </select>
-      </div>
-      <div id="scribe-body">
-        <nav id="scribe-explorer" aria-label="文件管理器">
-          <h2>文件</h2>
-          <ul id="scribe-file-list" role="listbox" aria-label="文件列表">
-            <li role="option" aria-selected="true">综合示例.md</li>
-            <li role="option" aria-selected="false">欢迎.md</li>
-            <li role="option" aria-selected="false">笔记.md</li>
-          </ul>
-        </nav>
-        <nav id="scribe-toc" aria-label="目录">
-          <h2>大纲</h2>
-          <div id="scribe-toc-list" role="tree" aria-label="标题列表"></div>
-        </nav>
-        <div id="scribe-stage" aria-label="编辑区">
-          <canvas id="scribe-canvas" aria-label="Scribe 编辑器画布"></canvas>
-          <div id="scribe-a11y-root"></div>
-          <div id="scribe-focus-highlight" aria-hidden="true" hidden></div>
-          <div id="scribe-inline-source" aria-hidden="true" hidden></div>
+        <header id="scribe-header" aria-label="Scribe 顶部栏">
           <div
-            id="scribe-split-handle"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="调整编辑器与预览区大小"
-            tabindex="0"
-          ></div>
-        </div>
-        <button
-          id="scribe-backdrop"
-          type="button"
-          aria-label="关闭抽屉"
-          hidden
-        ></button>
-      </div>
-      <dialog
-        id="scribe-settings"
-        aria-label="设置"
-        aria-modal="true"
-        aria-labelledby="scribe-settings-title"
-      >
-        <div class="scribe-settings__header">
-          <h2 id="scribe-settings-title">设置</h2>
-          <button
-            id="scribe-settings-close"
-            type="button"
-            aria-label="关闭设置"
-            title="关闭"
-          >
-            ×
-          </button>
-        </div>
-        <div class="scribe-settings__layout">
-          <nav
-            class="scribe-settings__nav"
-            role="tablist"
-            aria-orientation="vertical"
-            aria-label="Settings sections"
+            style="
+              display: flex;
+              align-items: center;
+              gap: 12px;
+              min-width: 0;
+              flex: 1 1 auto;
+            "
           >
             <button
-              role="tab"
-              id="scribe-settings-tab-appearance"
-              data-tab="appearance"
-              aria-selected="true"
-              aria-controls="scribe-settings-pane-appearance"
-              tabindex="0"
+              id="scribe-menu-toggle"
+              class="scribe-icon-btn"
+              type="button"
+              aria-label="切换文件管理器"
+              aria-expanded="false"
+              aria-controls="scribe-explorer"
             >
-              <span class="scribe-settings__icon" aria-hidden="true">🎨</span>
-              <span class="scribe-settings__label">外观</span>
+              ☰
             </button>
             <button
-              role="tab"
-              id="scribe-settings-tab-editor"
-              data-tab="editor"
-              aria-selected="false"
-              aria-controls="scribe-settings-pane-editor"
-              tabindex="-1"
+              id="scribe-toggle-explorer"
+              class="scribe-icon-btn scribe-collapse-btn"
+              type="button"
+              aria-label="收起文件管理器"
+              aria-expanded="true"
+              aria-controls="scribe-explorer"
+              title="切换文件管理器（收起）"
             >
-              <span class="scribe-settings__icon" aria-hidden="true">📝</span>
-              <span class="scribe-settings__label">编辑器</span>
+              ◀
             </button>
             <button
-              role="tab"
-              id="scribe-settings-tab-hotkeys"
-              data-tab="hotkeys"
-              aria-selected="false"
-              aria-controls="scribe-settings-pane-hotkeys"
-              tabindex="-1"
+              id="scribe-toggle-toc"
+              class="scribe-icon-btn scribe-collapse-btn"
+              type="button"
+              aria-label="收起大纲"
+              aria-expanded="true"
+              aria-controls="scribe-toc"
+              title="切换大纲"
             >
-              <span class="scribe-settings__icon" aria-hidden="true">⌨</span>
-              <span class="scribe-settings__label">快捷键</span>
+              ☷
             </button>
-            <button
-              role="tab"
-              id="scribe-settings-tab-about"
-              data-tab="about"
-              aria-selected="false"
-              aria-controls="scribe-settings-pane-about"
-              tabindex="-1"
-            >
-              <span class="scribe-settings__icon" aria-hidden="true">ℹ</span>
-              <span class="scribe-settings__label">关于</span>
-            </button>
-          </nav>
-          <div class="scribe-settings__panes">
-            <!-- Appearance: Theme, Language -->
-            <section
-              role="tabpanel"
-              id="scribe-settings-pane-appearance"
-              class="scribe-settings__pane"
-              aria-labelledby="scribe-settings-tab-appearance"
-            >
-              <h3 id="scribe-settings-appearance-title">外观</h3>
-              <div>
-                <label
-                  for="scribe-settings-theme-picker"
-                  style="font-size: 12px; font-weight: 600; margin-bottom: 6px"
-                  >Markdown 主题</label
-                >
-                <select
-                  id="scribe-settings-theme-picker"
-                  aria-label="Markdown 主题（设置）"
-                  style="width: 100%"
-                >
-                  <option value="githubLight">GitHub Light</option>
-                  <option value="githubDark">GitHub Dark</option>
-                  <option value="dracula">Dracula</option>
-                  <option value="solarizedLight">Solarized Light</option>
-                  <option value="solarizedDark">Solarized Dark</option>
-                </select>
-                <p class="hint" id="scribe-settings-theme-hint">
-                  应用于预览、编辑器和外壳主题。
-                </p>
-              </div>
-              <div>
-                <label
-                  for="scribe-settings-lang-picker"
-                  style="font-size: 12px; font-weight: 600; margin-bottom: 6px"
-                  >语言</label
-                >
-                <select
-                  id="scribe-settings-lang-picker"
-                  aria-label="语言（设置）"
-                  style="width: 100%"
-                >
-                  <option value="zh-CN">简体中文</option>
-                  <option value="en">English</option>
-                </select>
-                <p class="hint" id="scribe-settings-lang-hint">
-                  界面语言，切换后立即刷新外壳。
-                </p>
-              </div>
-            </section>
-
-            <!-- Editor: Live preview, Scroll sync, Focus mode, WYSIWYG -->
-            <section
-              role="tabpanel"
-              id="scribe-settings-pane-editor"
-              class="scribe-settings__pane"
-              aria-labelledby="scribe-settings-tab-editor"
-              hidden
-            >
-              <h3 id="scribe-settings-editor-title">编辑器</h3>
-              <label id="scribe-settings-live-preview-label"
-                ><input type="checkbox" id="scribe-live-preview" checked />
-                实时预览</label
-              >
-              <label id="scribe-settings-scroll-sync-label"
-                ><input type="checkbox" id="scribe-scroll-sync" checked />
-                滚动同步</label
-              >
-              <label id="scribe-settings-focus-mode-label"
-                ><input type="checkbox" id="scribe-focus-mode" />
-                专注模式</label
-              >
-              <label id="scribe-settings-wysiwyg-label"
-                ><input type="checkbox" id="scribe-settings-wysiwyg" />
-                所见即所得模式</label
-              >
-              <p class="hint" id="scribe-settings-editor-hint">
-                实时预览关闭时需手动刷新。所见即所得为 Typora 风格单栏编辑。
-              </p>
-            </section>
-
-            <!-- Hotkeys: shortcuts table -->
-            <section
-              role="tabpanel"
-              id="scribe-settings-pane-hotkeys"
-              class="scribe-settings__pane"
-              aria-labelledby="scribe-settings-tab-hotkeys"
-              hidden
-            >
-              <h3 id="scribe-settings-hotkeys-title">快捷键</h3>
-              <table
-                class="scribe-settings__hotkeys-table"
-                aria-label="快捷键列表"
-              >
-                <thead>
-                  <tr>
-                    <th id="scribe-settings-hotkeys-col-action">操作</th>
-                    <th id="scribe-settings-hotkeys-col-shortcut">快捷键</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td data-hotkey="bold">加粗</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">B</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="italic">斜体</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">I</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="code">行内代码</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">E</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="h1">标题 1</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">1</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="h2">标题 2</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">2</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="h3">标题 3</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">3</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="quote">引用</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">Q</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="codeBlock">代码块</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">Shift</span> +
-                      <span class="scribe-settings__kbd">C</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="link">链接</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">K</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="image">图片</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">Shift</span> +
-                      <span class="scribe-settings__kbd">I</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="table">表格</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">Shift</span> +
-                      <span class="scribe-settings__kbd">T</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="math">行内公式</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">Shift</span> +
-                      <span class="scribe-settings__kbd">M</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="undo">撤销</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">Z</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td data-hotkey="redo">重做</td>
-                    <td>
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">Y</span> /
-                      <span class="scribe-settings__kbd">Ctrl</span> +
-                      <span class="scribe-settings__kbd">Shift</span> +
-                      <span class="scribe-settings__kbd">Z</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              <p class="hint" id="scribe-settings-hotkeys-hint">
-                macOS 上将 Ctrl 替换为 ⌘。输入法组合输入时快捷键暂停。
-              </p>
-            </section>
-
-            <!-- About: hybrid shell note + debug + export -->
-            <section
-              role="tabpanel"
-              id="scribe-settings-pane-about"
-              class="scribe-settings__pane"
-              aria-labelledby="scribe-settings-tab-about"
-              hidden
-            >
-              <h3 id="scribe-settings-about-title">关于</h3>
-              <div>
-                <h4 id="scribe-settings-about-hybrid-title">混合外壳</h4>
-                <p class="hint" id="scribe-settings-about-hybrid">
-                  混合外壳：外层为 HTML/CSS，中心为 VectoJS 画布与无障碍投影。
-                </p>
-                <h4 id="scribe-settings-about-debug-title">调试</h4>
-                <p class="hint" id="scribe-settings-about-debug">
-                  添加 <code>?debug</code> 以附加开发者工具。
-                </p>
-                <h4 id="scribe-settings-about-export-title">导出</h4>
-                <p class="hint" id="scribe-settings-about-export">
-                  通过 Blob 与 FileSaver 下载。HTML 使用
-                  <code>outerHTML</code> 包装。
-                </p>
-              </div>
-            </section>
+            <h1>Scribe</h1>
+            <span id="scribe-file-name" aria-live="polite">未命名.md</span>
           </div>
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 12px;
+              flex-shrink: 0;
+            "
+          >
+            <span id="scribe-save-status" aria-live="polite">已保存</span>
+            <div id="scribe-export-group" aria-label="导出">
+              <button
+                id="scribe-export-md"
+                type="button"
+                title="下载 Markdown"
+                aria-label="下载 Markdown"
+              >
+                MD
+              </button>
+              <button
+                id="scribe-export-html"
+                type="button"
+                title="下载 HTML"
+                aria-label="下载 HTML"
+              >
+                HTML
+              </button>
+              <button
+                id="scribe-export-pdf"
+                type="button"
+                title="打印 / 保存 PDF"
+                aria-label="打印 PDF"
+              >
+                PDF
+              </button>
+            </div>
+          </div>
+        </header>
+        <!-- Toolbar: StackEdit/Typora familiar row, HTML buttons with inline SVG (cdn-vectojs/scribe/*) -->
+        <div id="scribe-toolbar" role="toolbar" aria-label="Markdown 格式">
+          <div class="toolbar-group" aria-label="行内">
+            <button
+              type="button"
+              data-action="bold"
+              title="加粗 (Ctrl+B)"
+              aria-label="加粗"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M5 3h3.2c1.7 0 2.8 1 2.8 2.4 0 .9-.4 1.6-1.2 2 1 .4 1.6 1.2 1.6 2.2 0 1.6-1.2 2.4-3 2.4H5V3Zm1.5 4.8h2c.7 0 1.2-.4 1.2-1.1 0-.7-.5-1.1-1.2-1.1h-2v2.2Zm0 1.4v2.4h2.3c.7 0 1.3-.4 1.3-1.2 0-.7-.5-1.2-1.4-1.2h-2.2Z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-action="italic"
+              title="斜体 (Ctrl+I)"
+              aria-label="斜体"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M7 3h4l-.6 1.5H9l-2.4 6H8l-.6 1.5H3l.6-1.5H5l2.4-6H6L7 3Z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-action="code"
+              title="行内代码 (Ctrl+E)"
+              aria-label="行内代码"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M6 4 3.2 8 6 12l-.9.7L1.8 8 5.1 3.3 6 4Zm4 0 2.8 4L10 12l.9.7L14.2 8 10.9 3.3 10 4ZM8.3 2.5l1.4.4-3.4 10-1.4-.4 3.4-10Z"
+                />
+              </svg>
+            </button>
+          </div>
+          <div class="toolbar-group" aria-label="块">
+            <button
+              type="button"
+              data-action="h1"
+              title="标题 1 (Ctrl+1)"
+              aria-label="标题 1"
+            >
+              H1
+            </button>
+            <button
+              type="button"
+              data-action="h2"
+              title="标题 2 (Ctrl+2)"
+              aria-label="标题 2"
+            >
+              H2
+            </button>
+            <button
+              type="button"
+              data-action="h3"
+              title="标题 3 (Ctrl+3)"
+              aria-label="标题 3"
+            >
+              H3
+            </button>
+            <button
+              type="button"
+              data-action="quote"
+              title="引用 (Ctrl+Q)"
+              aria-label="引用"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M4 4h2v3H4V4Zm6 0h2v3H10V4ZM4 8h2v4H4V8Zm6 0h2v4h-2V8Z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-action="codeBlock"
+              title="代码块 (Ctrl+Shift+C)"
+              aria-label="代码块"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M2 5h12v1H2V5Zm0 4h12v1H2V9Zm0 4h8v1H2v-1Z" />
+                <path
+                  d="M4 3.5 2.5 5 4 6.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.1"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+          <div class="toolbar-group" aria-label="插入">
+            <button
+              type="button"
+              data-action="link"
+              title="链接 (Ctrl+K)"
+              aria-label="链接"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M6.7 9.3 5.3 10.7A2.2 2.2 0 0 1 2.2 7.6L3.7 6l1 1-1.5 1.5a.7.7 0 0 0 1 1L5.7 8l1 1ZM8 5.7 9.3 4.3A2.2 2.2 0 0 1 12.4 7.4l-1.4 1.4-1-1L11.5 6.3a.7.7 0 0 0-1-1L9 6.7 8 5.7ZM5.8 10.2l4.4-4.4.9.9-4.4 4.4-.9-.9Z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-action="image"
+              title="图片 (Ctrl+Shift+I)"
+              aria-label="图片"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M3 3h10v10H3V3Zm1 1v8h8V4H4Zm2 2.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2ZM4 11l2.2-2.8 2 2 1.3-1.7L12 11H4Z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-action="table"
+              title="表格 (Ctrl+Shift+T)"
+              aria-label="表格"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M3 3h10v10H3V3Zm1 1v8h8V4H4Zm0 3h8v1H4V7Zm0 3h8v1H4v-1ZM7 4v8h1V4H7Z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-action="math"
+              title="行内公式 (Ctrl+Shift+M)"
+              aria-label="公式"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M4 7h8v1H4V7Zm2 3h4v1H6V10Zm-2-6h1v2h2V4h1v2h2V4h1v2h1v1h-1v2h1v1h-1v2h-1v-2H9v2H8v-2H6v2H5v-2H4v-1h1V7H4V6Z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-action="mathBlock"
+              title="公式块"
+              aria-label="公式块"
+            >
+              $$
+            </button>
+          </div>
+          <div class="toolbar-group" aria-label="视图模式">
+            <button
+              type="button"
+              id="scribe-wysiwyg-toggle"
+              title="切换到实时 / 所见即所得 (Typora)"
+              aria-label="切换所见即所得模式"
+              aria-pressed="false"
+            >
+              实时
+            </button>
+            <button
+              type="button"
+              id="scribe-focus-toggle"
+              title="切换专注模式（高亮当前段落）"
+              aria-label="切换专注模式"
+              aria-pressed="false"
+            >
+              ◎ 专注
+            </button>
+          </div>
+          <select
+            id="scribe-theme-picker"
+            aria-label="Markdown 主题"
+            title="Markdown 主题"
+          >
+            <option value="githubLight">GitHub Light</option>
+            <option value="githubDark">GitHub Dark</option>
+            <option value="dracula">Dracula</option>
+            <option value="solarizedLight">Solarized Light</option>
+            <option value="solarizedDark">Solarized Dark</option>
+          </select>
+          <button
+            type="button"
+            id="scribe-theme-toggle"
+            title="切换主题"
+            aria-label="切换主题"
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" width="14" height="14">
+              <path
+                d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2Zm0 1a5 5 0 0 1 4.3 7.5A5 5 0 0 1 8 3Z"
+              />
+            </svg>
+            主题
+          </button>
+          <select id="scribe-lang-picker" aria-label="语言" title="语言">
+            <option value="zh-CN">简体中文</option>
+            <option value="en">English</option>
+          </select>
         </div>
-      </dialog>
-      <div
-        id="scribe-context-menu"
-        role="menu"
-        hidden
-        aria-hidden="true"
-        aria-label="上下文菜单"
-      ></div>
-    </div>
+        <div id="scribe-body">
+          <nav id="scribe-explorer" aria-label="文件管理器">
+            <h2>文件</h2>
+            <ul id="scribe-file-list" role="listbox" aria-label="文件列表">
+              <li role="option" aria-selected="true">综合示例.md</li>
+              <li role="option" aria-selected="false">欢迎.md</li>
+              <li role="option" aria-selected="false">笔记.md</li>
+            </ul>
+          </nav>
+          <nav id="scribe-toc" aria-label="目录">
+            <h2>大纲</h2>
+            <div id="scribe-toc-list" role="tree" aria-label="标题列表"></div>
+          </nav>
+          <div id="scribe-stage" aria-label="编辑区">
+            <canvas id="scribe-canvas" aria-label="Scribe 编辑器画布"></canvas>
+            <div id="scribe-a11y-root"></div>
+            <div id="scribe-focus-highlight" aria-hidden="true" hidden></div>
+            <div id="scribe-inline-source" aria-hidden="true" hidden></div>
+            <div
+              id="scribe-split-handle"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="调整编辑器与预览区大小"
+              tabindex="0"
+            ></div>
+            <div
+              id="scribe-scrollbar-editor"
+              class="scribe-scrollbar"
+              aria-hidden="true"
+              hidden
+            >
+              <div class="scribe-scrollbar__thumb"></div>
+            </div>
+            <div
+              id="scribe-scrollbar-preview"
+              class="scribe-scrollbar"
+              aria-hidden="true"
+              hidden
+            >
+              <div class="scribe-scrollbar__thumb"></div>
+            </div>
+          </div>
+          <button
+            id="scribe-backdrop"
+            type="button"
+            aria-label="关闭抽屉"
+            hidden
+          ></button>
+        </div>
+        <div id="scribe-statusbar" role="status" aria-label="状态栏">
+          <span id="scribe-wordcount" aria-live="polite"></span>
+          <span id="scribe-status-right" aria-live="polite"></span>
+        </div>
+        <dialog
+          id="scribe-settings"
+          aria-label="设置"
+          aria-modal="true"
+          aria-labelledby="scribe-settings-title"
+        >
+          <div class="scribe-settings__header">
+            <h2 id="scribe-settings-title">设置</h2>
+            <button
+              id="scribe-settings-close"
+              type="button"
+              aria-label="关闭设置"
+              title="关闭"
+            >
+              ×
+            </button>
+          </div>
+          <div class="scribe-settings__layout">
+            <nav
+              class="scribe-settings__nav"
+              role="tablist"
+              aria-orientation="vertical"
+              aria-label="Settings sections"
+            >
+              <button
+                role="tab"
+                id="scribe-settings-tab-appearance"
+                data-tab="appearance"
+                aria-selected="true"
+                aria-controls="scribe-settings-pane-appearance"
+                tabindex="0"
+              >
+                <span class="scribe-settings__icon" aria-hidden="true">🎨</span>
+                <span class="scribe-settings__label">外观</span>
+              </button>
+              <button
+                role="tab"
+                id="scribe-settings-tab-editor"
+                data-tab="editor"
+                aria-selected="false"
+                aria-controls="scribe-settings-pane-editor"
+                tabindex="-1"
+              >
+                <span class="scribe-settings__icon" aria-hidden="true">📝</span>
+                <span class="scribe-settings__label">编辑器</span>
+              </button>
+              <button
+                role="tab"
+                id="scribe-settings-tab-hotkeys"
+                data-tab="hotkeys"
+                aria-selected="false"
+                aria-controls="scribe-settings-pane-hotkeys"
+                tabindex="-1"
+              >
+                <span class="scribe-settings__icon" aria-hidden="true">⌨</span>
+                <span class="scribe-settings__label">快捷键</span>
+              </button>
+              <button
+                role="tab"
+                id="scribe-settings-tab-about"
+                data-tab="about"
+                aria-selected="false"
+                aria-controls="scribe-settings-pane-about"
+                tabindex="-1"
+              >
+                <span class="scribe-settings__icon" aria-hidden="true">ℹ</span>
+                <span class="scribe-settings__label">关于</span>
+              </button>
+            </nav>
+            <div class="scribe-settings__panes">
+              <!-- Appearance: Theme, Language -->
+              <section
+                role="tabpanel"
+                id="scribe-settings-pane-appearance"
+                class="scribe-settings__pane"
+                aria-labelledby="scribe-settings-tab-appearance"
+              >
+                <h3 id="scribe-settings-appearance-title">外观</h3>
+                <div>
+                  <label
+                    for="scribe-settings-theme-picker"
+                    style="
+                      font-size: 12px;
+                      font-weight: 600;
+                      margin-bottom: 6px;
+                    "
+                    >Markdown 主题</label
+                  >
+                  <select
+                    id="scribe-settings-theme-picker"
+                    aria-label="Markdown 主题（设置）"
+                    style="width: 100%"
+                  >
+                    <option value="githubLight">GitHub Light</option>
+                    <option value="githubDark">GitHub Dark</option>
+                    <option value="dracula">Dracula</option>
+                    <option value="solarizedLight">Solarized Light</option>
+                    <option value="solarizedDark">Solarized Dark</option>
+                  </select>
+                  <p class="hint" id="scribe-settings-theme-hint">
+                    应用于预览、编辑器和外壳主题。
+                  </p>
+                </div>
+                <div>
+                  <label
+                    for="scribe-settings-lang-picker"
+                    style="
+                      font-size: 12px;
+                      font-weight: 600;
+                      margin-bottom: 6px;
+                    "
+                    >语言</label
+                  >
+                  <select
+                    id="scribe-settings-lang-picker"
+                    aria-label="语言（设置）"
+                    style="width: 100%"
+                  >
+                    <option value="zh-CN">简体中文</option>
+                    <option value="en">English</option>
+                  </select>
+                  <p class="hint" id="scribe-settings-lang-hint">
+                    界面语言，切换后立即刷新外壳。
+                  </p>
+                </div>
+              </section>
+
+              <!-- Editor: Live preview, Scroll sync, Focus mode, WYSIWYG -->
+              <section
+                role="tabpanel"
+                id="scribe-settings-pane-editor"
+                class="scribe-settings__pane"
+                aria-labelledby="scribe-settings-tab-editor"
+                hidden
+              >
+                <h3 id="scribe-settings-editor-title">编辑器</h3>
+                <label id="scribe-settings-live-preview-label"
+                  ><input type="checkbox" id="scribe-live-preview" checked />
+                  实时预览</label
+                >
+                <label id="scribe-settings-scroll-sync-label"
+                  ><input type="checkbox" id="scribe-scroll-sync" checked />
+                  滚动同步</label
+                >
+                <label id="scribe-settings-focus-mode-label"
+                  ><input type="checkbox" id="scribe-focus-mode" />
+                  专注模式</label
+                >
+                <label id="scribe-settings-wysiwyg-label"
+                  ><input type="checkbox" id="scribe-settings-wysiwyg" />
+                  所见即所得模式</label
+                >
+                <p class="hint" id="scribe-settings-editor-hint">
+                  实时预览关闭时需手动刷新。所见即所得为 Typora 风格单栏编辑。
+                </p>
+              </section>
+
+              <!-- Hotkeys: shortcuts table -->
+              <section
+                role="tabpanel"
+                id="scribe-settings-pane-hotkeys"
+                class="scribe-settings__pane"
+                aria-labelledby="scribe-settings-tab-hotkeys"
+                hidden
+              >
+                <h3 id="scribe-settings-hotkeys-title">快捷键</h3>
+                <table
+                  class="scribe-settings__hotkeys-table"
+                  aria-label="快捷键列表"
+                >
+                  <thead>
+                    <tr>
+                      <th id="scribe-settings-hotkeys-col-action">操作</th>
+                      <th id="scribe-settings-hotkeys-col-shortcut">快捷键</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td data-hotkey="bold">加粗</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">B</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="italic">斜体</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">I</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="code">行内代码</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">E</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="h1">标题 1</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">1</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="h2">标题 2</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">2</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="h3">标题 3</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">3</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="quote">引用</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">Q</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="codeBlock">代码块</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">Shift</span> +
+                        <span class="scribe-settings__kbd">C</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="link">链接</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">K</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="image">图片</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">Shift</span> +
+                        <span class="scribe-settings__kbd">I</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="table">表格</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">Shift</span> +
+                        <span class="scribe-settings__kbd">T</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="math">行内公式</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">Shift</span> +
+                        <span class="scribe-settings__kbd">M</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="undo">撤销</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">Z</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td data-hotkey="redo">重做</td>
+                      <td>
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">Y</span> /
+                        <span class="scribe-settings__kbd">Ctrl</span> +
+                        <span class="scribe-settings__kbd">Shift</span> +
+                        <span class="scribe-settings__kbd">Z</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class="hint" id="scribe-settings-hotkeys-hint">
+                  macOS 上将 Ctrl 替换为 ⌘。输入法组合输入时快捷键暂停。
+                </p>
+              </section>
+
+              <!-- About: hybrid shell note + debug + export -->
+              <section
+                role="tabpanel"
+                id="scribe-settings-pane-about"
+                class="scribe-settings__pane"
+                aria-labelledby="scribe-settings-tab-about"
+                hidden
+              >
+                <h3 id="scribe-settings-about-title">关于</h3>
+                <div>
+                  <h4 id="scribe-settings-about-hybrid-title">混合外壳</h4>
+                  <p class="hint" id="scribe-settings-about-hybrid">
+                    混合外壳：外层为 HTML/CSS，中心为 VectoJS 画布与无障碍投影。
+                  </p>
+                  <h4 id="scribe-settings-about-debug-title">调试</h4>
+                  <p class="hint" id="scribe-settings-about-debug">
+                    添加 <code>?debug</code> 以附加开发者工具。
+                  </p>
+                  <h4 id="scribe-settings-about-export-title">导出</h4>
+                  <p class="hint" id="scribe-settings-about-export">
+                    通过 Blob 与 FileSaver 下载。HTML 使用
+                    <code>outerHTML</code> 包装。
+                  </p>
+                </div>
+              </section>
+            </div>
+          </div>
+        </dialog>
+        <div
+          id="scribe-context-menu"
+          role="menu"
+          hidden
+          aria-hidden="true"
+          aria-label="上下文菜单"
+        ></div>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

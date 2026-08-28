@@ -171,6 +171,21 @@ function mountScribe(): void {
   const focusHighlightEl = document.getElementById('scribe-focus-highlight') as HTMLElement | null;
   // Inline WYSIWYG (Obsidian Live Preview) — CTX-0541+ Phase 2
   const inlineSourceEl = document.getElementById('scribe-inline-source') as HTMLElement | null;
+  // Status bar word count (CTX-0545) + visible overlay scrollbars (8px, always visible)
+  const wordCountEl = document.getElementById('scribe-wordcount') as HTMLElement | null;
+  const statusRightEl = document.getElementById('scribe-status-right') as HTMLElement | null;
+  const scrollbarEditorEl = document.getElementById(
+    'scribe-scrollbar-editor',
+  ) as HTMLElement | null;
+  const scrollbarEditorThumb = scrollbarEditorEl?.querySelector(
+    '.scribe-scrollbar__thumb',
+  ) as HTMLElement | null;
+  const scrollbarPreviewEl = document.getElementById(
+    'scribe-scrollbar-preview',
+  ) as HTMLElement | null;
+  const scrollbarPreviewThumb = scrollbarPreviewEl?.querySelector(
+    '.scribe-scrollbar__thumb',
+  ) as HTMLElement | null;
 
   if (!canvas || !stage) throw new Error('Scribe requires #scribe-canvas and #scribe-stage');
 
@@ -186,6 +201,20 @@ function mountScribe(): void {
     document.documentElement.setAttribute('data-theme', mode);
   };
   applyHtmlTheme(themeMode);
+
+  // ── Word count stats (CTX-0545) — CJK-aware: each han char = 1 word ──────
+  const computeWordStats = (value: string): { chars: number; words: number; lines: number } => {
+    const chars = value.length;
+    const lines = value.length === 0 ? 0 : value.split('\n').length;
+    const cjk = (value.match(/[\u4e00-\u9fff]/g) || []).length;
+    const latinPart = value.replace(/[\u4e00-\u9fff]/g, ' ');
+    const latinWords =
+      latinPart.trim() === '' ? 0 : latinPart.trim().split(/\s+/).filter(Boolean).length;
+    const words = cjk + latinWords;
+    return { chars, words, lines };
+  };
+  // Word-count updater is assigned after TextArea is created (needs closure over it)
+  let updateWordCount: () => void = () => {};
 
   const model = createDocument();
   // Localize default file names for fresh installs when locale is zh-CN
@@ -630,8 +659,35 @@ function mountScribe(): void {
       }
       persistDocument(model);
       if (saveStatusEl) saveStatusEl.textContent = t('header.save.edited');
+      updateWordCount();
     },
   });
+
+  // Word-count status bar helper — defined after textArea so it closes over it
+  updateWordCount = (): void => {
+    if (!wordCountEl) return;
+    const value = textArea?.value ?? model.activeFile?.content ?? '';
+    const { chars, words, lines } = computeWordStats(value ?? '');
+    try {
+      wordCountEl.textContent = t('status.wordCount', { chars, words, lines });
+    } catch {
+      wordCountEl.textContent = `${chars} / ${words} / ${lines}`;
+    }
+    if (statusRightEl) {
+      const selLen = Math.abs((textArea?.selectionEnd ?? 0) - (textArea?.selectionStart ?? 0));
+      if (selLen > 0) {
+        try {
+          statusRightEl.textContent = t('status.wordCount.chars', {
+            count: selLen,
+          });
+        } catch {
+          statusRightEl.textContent = `${selLen} selected`;
+        }
+      } else {
+        statusRightEl.textContent = '';
+      }
+    }
+  };
 
   // Markdown preview — right pane inside ScrollView with document-like physics (no bounce)
   const initialPreviewWidth = Math.max(320, 600);
@@ -753,6 +809,7 @@ function mountScribe(): void {
     previewScroll.updateContentSize();
     updateChrome();
     updateToc();
+    updateWordCount();
     persistDocument(model);
     if (saveStatusEl) saveStatusEl.textContent = 'Edited';
     scene.markDirty();
@@ -1336,6 +1393,13 @@ function mountScribe(): void {
     }
     const contextMenuEl = document.getElementById('scribe-context-menu') as HTMLElement | null;
     if (contextMenuEl) contextMenuEl.setAttribute('aria-label', t('context.menu.aria', locale));
+    const statusBarEl = document.getElementById('scribe-statusbar') as HTMLElement | null;
+    if (statusBarEl) statusBarEl.setAttribute('aria-label', t('status.aria', locale));
+    try {
+      updateWordCount();
+    } catch {
+      // ignore early
+    }
     syncLangPickers(locale);
   };
 
@@ -1484,6 +1548,7 @@ function mountScribe(): void {
     }
     updateChrome();
     updateToc();
+    updateWordCount();
     // Re-render preview/scene to ensure any language-dependent overlays repaint
     scene.markDirty();
   });
@@ -1495,6 +1560,7 @@ function mountScribe(): void {
     previewScroll.updateContentSize();
     updateChrome();
     updateToc();
+    updateWordCount();
     if (scrollSyncEnabled) syncEditorToPreview();
     scene.markDirty();
   };
@@ -1941,6 +2007,106 @@ function mountScribe(): void {
   // (CanvasRenderer.resize: Math.round(css*dpr) max(1), NaN/Infinity→1) and guards
   // 0-height transient from iOS Safari URL-bar collapse.
   // Centered reading column (Obsidian/Typora): max 860, balanced gutters, mobile responsive.
+  // ── Visible overlay scrollbars — 8px, always visible (StackEdit/Obsidian) ──
+  const updatePreviewScrollbar = (): void => {
+    if (!scrollbarPreviewEl || !scrollbarPreviewThumb) return;
+    const viewportHeight = previewScroll.height;
+    const contentHeight =
+      (previewScroll as unknown as { content: { height: number } }).content.height ||
+      markdown.height ||
+      0;
+    const maxScroll = Math.max(0, contentHeight - viewportHeight);
+    if (maxScroll <= 0) {
+      scrollbarPreviewEl.hidden = true;
+      return;
+    }
+    scrollbarPreviewEl.hidden = false;
+    const x = (previewScroll as unknown as { x: number }).x ?? OUTER_PAD;
+    const y = (previewScroll as unknown as { y: number }).y ?? OUTER_PAD;
+    const w = (previewScroll as unknown as { width: number }).width ?? 400;
+    const scrollTop = -(previewScroll as unknown as { content: { y: number } }).content.y || 0;
+    const trackTop = Math.round(y);
+    const trackHeight = Math.round(viewportHeight);
+    const trackLeft = Math.round(x + w - 10);
+    scrollbarPreviewEl.style.left = `${trackLeft}px`;
+    scrollbarPreviewEl.style.top = `${trackTop}px`;
+    scrollbarPreviewEl.style.height = `${trackHeight}px`;
+    scrollbarPreviewEl.style.width = '8px';
+    const thumbMin = 24;
+    const thumbHeight = Math.max(
+      thumbMin,
+      Math.round((viewportHeight * viewportHeight) / Math.max(1, contentHeight)),
+    );
+    const maxThumbTop = Math.max(0, trackHeight - thumbHeight);
+    const thumbTop = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * maxThumbTop) : 0;
+    scrollbarPreviewThumb.style.height = `${thumbHeight}px`;
+    scrollbarPreviewThumb.style.top = `${thumbTop}px`;
+  };
+
+  const updateEditorScrollbar = (): void => {
+    if (!scrollbarEditorEl || !scrollbarEditorThumb) return;
+    if (viewMode === 'wysiwyg') {
+      scrollbarEditorEl.hidden = true;
+      return;
+    }
+    const anyTA = textArea as unknown as {
+      scrollTop: number;
+      height: number;
+      padding: number;
+      lineHeightFactor: number;
+      font: string;
+    };
+    const lh = (() => {
+      const m = /([0-9.]+)px/.exec(anyTA.font);
+      const fs = m ? Number.parseFloat(m[1]) : 14;
+      return fs * (anyTA.lineHeightFactor ?? 1.6);
+    })();
+    const viewportHeight = anyTA.height - 2 * anyTA.padding;
+    const lineCount = (() => {
+      try {
+        return (
+          (textArea as unknown as { lineOfOffset: (n: number) => number }).lineOfOffset(
+            textArea.value.length,
+          ) + 1
+        );
+      } catch {
+        return textArea.value.split('\n').length || 1;
+      }
+    })();
+    const contentHeight = lineCount * lh + 2 * anyTA.padding;
+    const maxScroll = Math.max(0, contentHeight - anyTA.height);
+    if (maxScroll <= 0 || viewportHeight <= 0) {
+      scrollbarEditorEl.hidden = true;
+      return;
+    }
+    scrollbarEditorEl.hidden = false;
+    const x = (textArea as unknown as { x: number }).x ?? OUTER_PAD;
+    const y = (textArea as unknown as { y: number }).y ?? OUTER_PAD;
+    const w = (textArea as unknown as { width: number }).width ?? 400;
+    const trackTop = Math.round(y);
+    const trackHeight = Math.round(viewportHeight);
+    const trackLeft = Math.round(x + w - 10);
+    scrollbarEditorEl.style.left = `${trackLeft}px`;
+    scrollbarEditorEl.style.top = `${trackTop}px`;
+    scrollbarEditorEl.style.height = `${trackHeight}px`;
+    scrollbarEditorEl.style.width = '8px';
+    const scrollTop = anyTA.scrollTop ?? 0;
+    const thumbMin = 24;
+    const thumbHeight = Math.max(
+      thumbMin,
+      Math.round((viewportHeight * viewportHeight) / Math.max(1, contentHeight)),
+    );
+    const maxThumbTop = Math.max(0, trackHeight - thumbHeight);
+    const thumbTop = maxScroll > 0 ? Math.round((scrollTop / maxScroll) * maxThumbTop) : 0;
+    scrollbarEditorThumb.style.height = `${thumbHeight}px`;
+    scrollbarEditorThumb.style.top = `${thumbTop}px`;
+  };
+
+  const updateScrollbars = (): void => {
+    updatePreviewScrollbar();
+    updateEditorScrollbar();
+  };
+
   const layout = (): void => {
     const w = stage.clientWidth;
     const h = stage.clientHeight;
@@ -1984,6 +2150,7 @@ function mountScribe(): void {
       } catch {
         // not yet initialized on first layout
       }
+      updateScrollbars();
       return;
     }
 
@@ -2022,6 +2189,7 @@ function mountScribe(): void {
     } catch {
       // ignore early
     }
+    updateScrollbars();
   };
 
   const observer = new ResizeObserver(layout);
@@ -2029,6 +2197,191 @@ function mountScribe(): void {
   layout();
   // Re-apply WYSIWYG chrome now that layout has measured — ensures handle visibility + preview width are correct
   updateWysiwygChrome(viewMode);
+  updateScrollbars();
+  updateWordCount();
+
+  // ── Scrollbar live sync (rAF loop + scroll listeners) ────────────────────
+  let scrollbarRaf = 0;
+  const loopScrollbars = (): void => {
+    scrollbarRaf = requestAnimationFrame(() => {
+      updateScrollbars();
+      loopScrollbars();
+    });
+  };
+  loopScrollbars();
+  // Also nudge on scroll/wheel for immediate feedback before next rAF
+  textArea.on('scroll', () => {
+    updateScrollbars();
+  });
+  previewScroll.on('wheel', () => {
+    // next frame will also update, but immediate for thumb snap
+    requestAnimationFrame(updateScrollbars);
+  });
+  // Watch mirror textarea scroll as well (a11y projection owns it)
+  const mirrorForScrollbar = getMirrorTextarea();
+  mirrorForScrollbar?.addEventListener('scroll', updateScrollbars);
+  // Drag thumb → scroll
+  const bindScrollbarDrag = (
+    thumb: HTMLElement | null,
+    track: HTMLElement | null,
+    getMetrics: () => {
+      viewportHeight: number;
+      contentHeight: number;
+      maxScroll: number;
+      scrollTop: number;
+    },
+    setScrollTop: (v: number) => void,
+  ): void => {
+    if (!thumb || !track) return;
+    let dragging = false;
+    let startY = 0;
+    let startScroll = 0;
+    let maxScrollCache = 0;
+    let maxThumbTopCache = 0;
+    const onMove = (e: PointerEvent): void => {
+      if (!dragging) return;
+      const dy = e.clientY - startY;
+      const deltaScroll = maxThumbTopCache > 0 ? (dy / maxThumbTopCache) * maxScrollCache : 0;
+      const next = Math.max(0, Math.min(maxScrollCache, startScroll + deltaScroll));
+      setScrollTop(next);
+      updateScrollbars();
+      scene.markDirty();
+    };
+    const onUp = (): void => {
+      if (!dragging) return;
+      dragging = false;
+      thumb.releasePointerCapture?.(0);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      thumb.style.cursor = 'pointer';
+    };
+    thumb.addEventListener('pointerdown', (e: PointerEvent) => {
+      e.preventDefault();
+      const m = getMetrics();
+      if (m.maxScroll <= 0) return;
+      dragging = true;
+      startY = e.clientY;
+      startScroll = m.scrollTop;
+      maxScrollCache = m.maxScroll;
+      const thumbH = Number.parseInt(thumb.style.height, 10) || 24;
+      maxThumbTopCache = Math.max(0, m.viewportHeight - thumbH);
+      thumb.setPointerCapture?.(e.pointerId);
+      thumb.style.cursor = 'grabbing';
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+    // Track click → jump (like native scrollbar page jump)
+    track.addEventListener('pointerdown', (e: PointerEvent) => {
+      if (e.target === thumb) return;
+      const rect = track.getBoundingClientRect();
+      const clickY = e.clientY - rect.top;
+      const m = getMetrics();
+      if (m.maxScroll <= 0) return;
+      const thumbH = Number.parseInt(thumb.style.height, 10) || 24;
+      const maxThumbTop = Math.max(0, m.viewportHeight - thumbH);
+      const ratio = maxThumbTop > 0 ? (clickY - thumbH / 2) / maxThumbTop : 0;
+      const clamped = Math.max(0, Math.min(1, ratio));
+      const next = Math.round(clamped * m.maxScroll);
+      setScrollTop(next);
+      updateScrollbars();
+      scene.markDirty();
+    });
+  };
+  bindScrollbarDrag(
+    scrollbarPreviewThumb,
+    scrollbarPreviewEl,
+    () => {
+      const viewportHeight = previewScroll.height;
+      const contentHeight =
+        (previewScroll as unknown as { content: { height: number } }).content.height ||
+        markdown.height ||
+        0;
+      const maxScroll = Math.max(0, contentHeight - viewportHeight);
+      const scrollTop = -(previewScroll as unknown as { content: { y: number } }).content.y || 0;
+      return { viewportHeight, contentHeight, maxScroll, scrollTop };
+    },
+    (v: number) => previewScroll.scrollTo(v),
+  );
+  bindScrollbarDrag(
+    scrollbarEditorThumb,
+    scrollbarEditorEl,
+    () => {
+      const anyTA = textArea as unknown as {
+        scrollTop: number;
+        height: number;
+        padding: number;
+        lineHeightFactor: number;
+        font: string;
+      };
+      const lh = (() => {
+        const m = /([0-9.]+)px/.exec(anyTA.font);
+        const fs = m ? Number.parseFloat(m[1]) : 14;
+        return fs * (anyTA.lineHeightFactor ?? 1.6);
+      })();
+      const viewportHeight = anyTA.height - 2 * anyTA.padding;
+      const lineCount = (() => {
+        try {
+          return (
+            (textArea as unknown as { lineOfOffset: (n: number) => number }).lineOfOffset(
+              textArea.value.length,
+            ) + 1
+          );
+        } catch {
+          return textArea.value.split('\n').length || 1;
+        }
+      })();
+      const contentHeight = lineCount * lh + 2 * anyTA.padding;
+      const maxScroll = Math.max(0, contentHeight - anyTA.height);
+      const scrollTop = anyTA.scrollTop ?? 0;
+      return { viewportHeight, contentHeight, maxScroll, scrollTop };
+    },
+    (v: number) => {
+      (textArea as unknown as { scrollTop: number }).scrollTop = v;
+      const mirror = getMirrorTextarea();
+      if (mirror) (mirror as unknown as { scrollTop: number }).scrollTop = v;
+      scene.markDirty();
+    },
+  );
+  // Ensure scrollbar visibility reacts to theme/layout changes
+  void scrollbarRaf;
+  // Selection change also updates status bar right side (selected chars)
+  document.addEventListener('selectionchange', () => {
+    const active = document.activeElement as HTMLElement | null;
+    if (
+      active?.tagName === 'TEXTAREA' ||
+      !!active?.closest('[data-vecto-a11y-root], #scribe-a11y-root') ||
+      wordCountEl
+    ) {
+      // Throttle: word count left is stable, but right side (selection length) changes often
+      updateWordCount();
+    }
+  });
+  // Watch mirror scroll via polling — mirrorOwnsScroll owns TextArea scrollTop, so we poll to keep thumb in sync
+  // (rAF loop already does, but listen to native scroll for instant)
+  const scrollbarMirror = getMirrorTextarea();
+  scrollbarMirror?.addEventListener('scroll', updateScrollbars);
+  // Expose for e2e/debug
+  (window as unknown as { __scribeUpdateScrollbars: () => void }).__scribeUpdateScrollbars =
+    updateScrollbars;
+  (
+    window as unknown as {
+      __scribeUpdateWordCount: () => void;
+      __scribeComputeWordStats: (v: string) => {
+        chars: number;
+        words: number;
+        lines: number;
+      };
+    }
+  ).__scribeUpdateWordCount = updateWordCount;
+  (
+    window as unknown as {
+      __scribeComputeWordStats: (v: string) => {
+        chars: number;
+        words: number;
+        lines: number;
+      };
+    }
+  ).__scribeComputeWordStats = computeWordStats;
 
   // ── WYSIWYG toggle wiring (Typora single surface) ─────────────────────
   const applyViewMode = (next: ViewMode): void => {
@@ -2785,6 +3138,7 @@ function mountScribe(): void {
     }
     model.updateContent(model.activeId, snap.value);
     renderMarkdownImmediate(snap.value);
+    updateWordCount();
     persistDocument(model);
     if (saveStatusEl) saveStatusEl.textContent = 'Edited';
     scene.markDirty();
@@ -2851,6 +3205,7 @@ function mountScribe(): void {
     }
     model.updateContent(model.activeId, next.value);
     renderMarkdownImmediate(next.value);
+    updateWordCount();
     persistDocument(model);
     if (saveStatusEl) saveStatusEl.textContent = t('header.save.edited');
     scene.markDirty();
@@ -3039,6 +3394,7 @@ function mountScribe(): void {
     previewScroll.updateContentSize();
     updateChrome();
     updateToc();
+    updateWordCount();
     scene.markDirty();
     try {
       queueInlineWysiwyg();
@@ -3078,6 +3434,7 @@ function mountScribe(): void {
       previewScroll.updateContentSize();
       updateChrome();
       updateToc();
+      updateWordCount();
       persistDocument(model);
       scene.markDirty();
       try {
@@ -3131,6 +3488,7 @@ function mountScribe(): void {
   // Initial chrome + toc
   updateChrome();
   updateToc();
+  updateWordCount();
 
   // --- Responsive drawer logic (<900 overlay) — explorer/toc drawers; settings is modal (CTX-0543) ---
   const isOverlay = (): boolean => window.innerWidth < 900;
@@ -3392,6 +3750,7 @@ function mountScribe(): void {
     previewScroll.updateContentSize();
     updateChrome();
     updateToc();
+    updateWordCount();
     persistDocument(model);
     if (saveStatusEl) saveStatusEl.textContent = t('header.save.edited');
     scene.markDirty();
@@ -3446,6 +3805,7 @@ function mountScribe(): void {
     }
     model.updateContent(model.activeId, nextVal);
     renderMarkdownImmediate(nextVal);
+    updateWordCount();
     persistDocument(model);
     scene.markDirty();
     try {
@@ -3475,6 +3835,7 @@ function mountScribe(): void {
       }
     }
     scene.markDirty();
+    updateWordCount();
     try {
       queueInlineWysiwyg();
     } catch {

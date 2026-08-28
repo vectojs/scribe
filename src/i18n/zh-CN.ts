@@ -156,4 +156,10 @@ export const zhCN: Record<keyof typeof en, string> = {
   'context.menu.aria': '上下文菜单',
   'context.copySelection': '复制',
   'context.selectLine': '选中行',
+  // status bar
+  'status.wordCount': '{chars} 字 / {words} 词 / {lines} 行',
+  'status.wordCount.chars': '{count} 字',
+  'status.wordCount.words': '{count} 词',
+  'status.wordCount.lines': '{count} 行',
+  'status.aria': '状态栏',
 };
