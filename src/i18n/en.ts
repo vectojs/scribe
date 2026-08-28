@@ -177,6 +177,8 @@ export const en = {
   'status.wordCount.words': '{count} words',
   'status.wordCount.lines': '{count} lines',
   'status.aria': 'Status bar',
+  'status.mermaid.loading': '⟳ Mermaid loading… ~1s first time',
+  'status.mermaid.ready': 'Mermaid ready',
 } as const;
 
 export type TranslationKey = keyof typeof en;

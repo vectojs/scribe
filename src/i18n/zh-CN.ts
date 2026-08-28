@@ -176,4 +176,6 @@ export const zhCN: Record<keyof typeof en, string> = {
   'status.wordCount.words': '{count} 词',
   'status.wordCount.lines': '{count} 行',
   'status.aria': '状态栏',
+  'status.mermaid.loading': '⟳ Mermaid 加载中… 首次约1s',
+  'status.mermaid.ready': 'Mermaid 就绪',
 };

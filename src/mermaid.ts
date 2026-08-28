@@ -1,5 +1,6 @@
 import { SVGEntity, type Entity } from '@vectojs/core';
 import { type FencedBlockRenderOptions, registerFencedBlockRenderer } from '@vectojs/markdown';
+import { Text } from '@vectojs/ui';
 
 // ---------------------------------------------------------------------------
 // Mermaid fenced-block renderer — spike (carryctx/mermaid-spike)
@@ -56,27 +57,113 @@ function getMermaidTheme(): 'dark' | 'default' {
   }
 }
 
-async function ensureMermaid(): Promise<unknown> {
-  if (mermaidInstance) return mermaidInstance;
-  // Dynamic import — vite code-splits mermaid into separate chunk.
-  const mod: unknown = await import('mermaid');
-  // mermaid 11 exports default with initialize/render; some bundlers expose named.
-  const m: Record<string, unknown> =
-    (mod as Record<string, unknown>).default !== undefined
-      ? ((mod as Record<string, unknown>).default as Record<string, unknown>)
-      : (mod as Record<string, unknown>);
-  const initialize = m.initialize as ((cfg: unknown) => void) | undefined;
-  if (typeof initialize === 'function') {
-    initialize({
-      startOnLoad: false,
-      theme: getMermaidTheme(),
-      securityLevel: 'strict',
-      fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-    });
-    mermaidInitTheme = getMermaidTheme();
+// ── Visible loading state (CTX-0565) ─────────────────────────────────────
+// First paint showed a plain CodeBlock for 1-2s while the mermaid chunk
+// downloaded + diagrams rendered, indistinguishable from "unsupported".
+// Expose a loading signal so the shell can show a placeholder + status hint.
+// ──────────────────────────────────────────────────────────────────────────
+let mermaidChunkLoading = false;
+let mermaidLoadPromise: Promise<unknown> | null = null;
+let lastLoadingNotified: boolean | null = null;
+const loadingListeners = new Set<(loading: boolean) => void>();
+
+function computeLoading(): boolean {
+  return mermaidChunkLoading || pendingRenders.size > 0;
+}
+
+function notifyLoadingChange(): void {
+  const loading = computeLoading();
+  if (lastLoadingNotified === loading) return;
+  lastLoadingNotified = loading;
+  for (const cb of loadingListeners) {
+    try {
+      cb(loading);
+    } catch (e) {
+      console.error('[mermaid] loading listener failed', e);
+    }
   }
-  mermaidInstance = m;
-  return m;
+  try {
+    window.dispatchEvent(
+      new CustomEvent(loading ? 'scribe:mermaid-loading' : 'scribe:mermaid-ready'),
+    );
+  } catch {
+    // ignore
+  }
+}
+
+export function onMermaidLoadingChange(cb: (loading: boolean) => void): () => void {
+  loadingListeners.add(cb);
+  try {
+    cb(computeLoading());
+  } catch {
+    // ignore
+  }
+  return () => {
+    loadingListeners.delete(cb);
+  };
+}
+
+export function isMermaidLoading(): boolean {
+  return computeLoading();
+}
+
+function createMermaidPlaceholder(opts: FencedBlockRenderOptions): Entity | null {
+  try {
+    const theme = opts.theme as unknown as Record<string, unknown>;
+    const commentColor = theme.syntaxCommentColor as string | undefined;
+    const quoteColor = theme.quoteBorderColor as string | undefined;
+    const fallback = getMermaidTheme() === 'dark' ? '#9aa0a6' : '#8a7f6b';
+    const color = (commentColor ?? quoteColor ?? fallback) as string;
+    const aw =
+      Number.isFinite(opts.availableWidth) && opts.availableWidth > 0 ? opts.availableWidth : 640;
+    // Bilingual loading text — obvious that rendering is pending, not "unsupported".
+    const msg = '⟳ Mermaid rendering… 首次加载约1s';
+    return new Text(msg, {
+      font: '13px ui-sans-serif, system-ui, -apple-system, sans-serif',
+      color,
+      maxWidth: Math.max(160, aw - 32),
+      lineHeight: 20,
+      selectable: true,
+    });
+  } catch (e) {
+    console.error('[mermaid] placeholder failed', e);
+    return null;
+  }
+}
+
+export async function ensureMermaid(): Promise<unknown> {
+  if (mermaidInstance) return mermaidInstance;
+  if (mermaidLoadPromise) return mermaidLoadPromise;
+  mermaidChunkLoading = true;
+  notifyLoadingChange();
+  mermaidLoadPromise = (async () => {
+    try {
+      // Dynamic import — vite code-splits mermaid into separate chunk.
+      const mod: unknown = await import('mermaid');
+      // mermaid 11 exports default with initialize/render; some bundlers expose named.
+      const m: Record<string, unknown> =
+        (mod as Record<string, unknown>).default !== undefined
+          ? ((mod as Record<string, unknown>).default as Record<string, unknown>)
+          : (mod as Record<string, unknown>);
+      const initialize = m.initialize as ((cfg: unknown) => void) | undefined;
+      if (typeof initialize === 'function') {
+        initialize({
+          startOnLoad: false,
+          theme: getMermaidTheme(),
+          securityLevel: 'strict',
+          fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+        });
+        mermaidInitTheme = getMermaidTheme();
+      }
+      mermaidInstance = m;
+      return m;
+    } finally {
+      mermaidChunkLoading = false;
+      notifyLoadingChange();
+      mermaidLoadPromise = null;
+    }
+  })();
+  return mermaidLoadPromise;
 }
 
 let idCounter = 0;
@@ -205,9 +292,11 @@ export function registerMermaidRenderer(): void {
               return '';
             } finally {
               pendingRenders.delete(cacheKey);
+              notifyLoadingChange();
             }
           })();
           pendingRenders.set(cacheKey, p as Promise<string>);
+          notifyLoadingChange();
           // Also handle promise resolution to notify even if sync check missed.
           void p.then((svg) => {
             if (svg) {
@@ -216,9 +305,13 @@ export function registerMermaidRenderer(): void {
           });
         }
 
-        // Return null → Markdown falls back to CodeBlock (readable source).
-        // Once the async render finishes, cacheUpdateListeners re-render markdown
-        // and the cached SVGEntity replaces the CodeBlock (see main.ts wiring).
+        // Visible loading placeholder — CTX-0565: instead of falling back to a
+        // raw CodeBlock (indistinguishable from "unsupported"), show a muted
+        // "Mermaid rendering…" entity so the user knows the diagram is coming.
+        // Once the async render finishes, cacheUpdateListeners rebuild markdown
+        // and the cached SVGEntity replaces this placeholder.
+        const placeholder = createMermaidPlaceholder(opts);
+        if (placeholder) return placeholder;
         return null;
       };
     },
@@ -229,6 +322,10 @@ export function registerMermaidRenderer(): void {
 export function __clearMermaidCacheForTest(): void {
   svgCache.clear();
   pendingRenders.clear();
+  mermaidChunkLoading = false;
+  mermaidLoadPromise = null;
+  lastLoadingNotified = null;
+  notifyLoadingChange();
 }
 
 export function __getMermaidCacheSizeForTest(): number {
