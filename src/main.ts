@@ -640,6 +640,73 @@ function mountScribe(): void {
           selectionEnd: textArea.selectionEnd,
         });
       }
+      // Bug A fix: typing x inside "[]" should keep cursor inside brackets (old+1), not after "]"
+      // Detect single-char insertion between "[" and "]" where cursor jumped after "]"
+      if (isValueChange) {
+        const prevVal = lastRenderedValue;
+        const curSel = textArea.selectionStart;
+        // Only when selection is collapsed
+        if (textArea.selectionStart === textArea.selectionEnd) {
+          let diffIdx = 0;
+          const minLen = Math.min(prevVal.length, next.length);
+          while (diffIdx < minLen && prevVal[diffIdx] === next[diffIdx]) diffIdx++;
+          // Check insertion of 1 char between "[" and "]" (empty brackets "[]")
+          if (
+            next.length === prevVal.length + 1 &&
+            diffIdx > 0 &&
+            diffIdx < prevVal.length &&
+            prevVal[diffIdx - 1] === '[' &&
+            prevVal[diffIdx] === ']'
+          ) {
+            // New value should have "[" at diffIdx-1, inserted char at diffIdx, "]" at diffIdx+1
+            if (next[diffIdx - 1] === '[' && next[diffIdx + 1] === ']') {
+              const expected = diffIdx + 1; // after inserted char, before "]"
+              if (curSel === expected + 1) {
+                const fixed = expected;
+                textArea.selectionStart = fixed;
+                textArea.selectionEnd = fixed;
+                const mirrorFix = getMirrorTextarea();
+                if (mirrorFix) {
+                  try {
+                    mirrorFix.selectionStart = fixed;
+                    mirrorFix.selectionEnd = fixed;
+                    (mirrorFix as HTMLTextAreaElement).setSelectionRange(fixed, fixed);
+                  } catch {
+                    // ignore
+                  }
+                }
+              }
+            }
+          } else if (
+            // Replacement inside "[ ]" (space) -> "[x]" : same length, single char change inside brackets
+            next.length === prevVal.length &&
+            diffIdx > 0 &&
+            diffIdx < prevVal.length &&
+            prevVal[diffIdx - 1] === '[' &&
+            prevVal[diffIdx + 1] === ']' &&
+            (prevVal[diffIdx] === ' ' || prevVal[diffIdx] === 'x' || prevVal[diffIdx] === 'X') &&
+            (next[diffIdx] === 'x' || next[diffIdx] === 'X' || next[diffIdx] === ' ')
+          ) {
+            // Single char replacement inside brackets, e.g. "[ ]" -> "[x]"
+            const expected = diffIdx + 1;
+            if (curSel === expected + 1) {
+              const fixed = expected;
+              textArea.selectionStart = fixed;
+              textArea.selectionEnd = fixed;
+              const mirrorFix2 = getMirrorTextarea();
+              if (mirrorFix2) {
+                try {
+                  mirrorFix2.selectionStart = fixed;
+                  mirrorFix2.selectionEnd = fixed;
+                  (mirrorFix2 as HTMLTextAreaElement).setSelectionRange(fixed, fixed);
+                } catch {
+                  // ignore
+                }
+              }
+            }
+          }
+        }
+      }
       model.updateContent(model.activeId, next);
       if (isValueChange) {
         lastRenderedValue = next;
@@ -796,13 +863,28 @@ function mountScribe(): void {
     const finalValue = lines.join('\n');
     textArea.value = finalValue;
     lastRenderedValue = finalValue;
-    textArea.selectionStart = 0;
-    textArea.selectionEnd = 0;
+    // Bug A: preserve cursor inside task brackets instead of jumping to 0
+    const lineStartOffset = lines.slice(0, lineIdx).join('\n').length + (lineIdx > 0 ? 1 : 0);
+    const bracketPosInNext = nextLine.indexOf('[');
+    const newSel =
+      bracketPosInNext >= 0
+        ? Math.min(lineStartOffset + bracketPosInNext + 2, lineStartOffset + nextLine.length)
+        : lineStartOffset;
+    textArea.selectionStart = newSel;
+    textArea.selectionEnd = newSel;
     const mirror = getMirrorTextarea();
     if (mirror) {
       mirror.value = finalValue;
-      mirror.selectionStart = 0;
-      mirror.selectionEnd = 0;
+      mirror.selectionStart = newSel;
+      mirror.selectionEnd = newSel;
+      try {
+        mirror.focus();
+        (mirror as HTMLTextAreaElement).setSelectionRange(newSel, newSel);
+      } catch {
+        // ignore
+      }
+    } else {
+      (textArea as unknown as { focused: boolean }).focused = true;
     }
     model.updateContent(model.activeId, finalValue);
     markdown.setContent(finalValue);
@@ -2975,6 +3057,24 @@ function mountScribe(): void {
   };
 
   queueInlineWysiwyg = (): void => {
+    // Bug B: source mode must never show inline overlay — hide synchronously and cancel pending
+    if (viewMode !== 'wysiwyg') {
+      if (inlineRaf) {
+        cancelAnimationFrame(inlineRaf);
+        inlineRaf = 0;
+      }
+      // Hide immediately without waiting for rAF; renderInlineWysiwyg will also restore opacities
+      try {
+        renderInlineWysiwyg();
+      } catch {
+        // ignore
+      }
+      if (inlineSourceEl && !inlineSourceEl.hidden) {
+        inlineSourceEl.hidden = true;
+        inlineSourceEl.classList.remove('is-visible');
+      }
+      return;
+    }
     if (inlineRaf) cancelAnimationFrame(inlineRaf);
     inlineRaf = requestAnimationFrame(() => {
       inlineRaf = 0;
@@ -2995,13 +3095,15 @@ function mountScribe(): void {
     queueInlineWysiwyg();
   });
   document.addEventListener('selectionchange', () => {
+    // Bug B: source mode must never show inline overlay — gate even textarea selection
+    if (viewMode !== 'wysiwyg') return;
     const active = document.activeElement as HTMLElement | null;
     if (
       active?.tagName === 'TEXTAREA' ||
       !!active?.closest('[data-vecto-a11y-root], #scribe-a11y-root')
     ) {
       queueInlineWysiwyg();
-    } else if (viewMode === 'wysiwyg') {
+    } else {
       // selectionchange may fire without focus in wysiwyg due to programmatic selection
       queueInlineWysiwyg();
     }
@@ -3010,8 +3112,14 @@ function mountScribe(): void {
   previewScroll.on('pointermove', () => {
     // sync during drag stays subtle; just ensure overlay follows scroll
   });
-  // Re-render also nudges inline overlay
-  setInterval(queueInlineWysiwyg, 600);
+  // Re-render also nudges inline overlay — gated to wysiwyg only (Bug B: source must never show)
+  setInterval(() => {
+    if (viewMode === 'wysiwyg') queueInlineWysiwyg();
+    else if (inlineSourceEl && !inlineSourceEl.hidden) {
+      inlineSourceEl.hidden = true;
+      inlineSourceEl.classList.remove('is-visible');
+    }
+  }, 600);
   // Wrap original scrollTo to also move inline overlay (already wrapped for focus, so wrap again)
   const origScrollToInline = (previewScroll as unknown as { scrollTo: (n: number) => void })
     .scrollTo;
