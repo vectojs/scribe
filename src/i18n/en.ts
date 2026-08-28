@@ -156,6 +156,12 @@ export const en = {
   'context.menu.aria': 'Context menu',
   'context.copySelection': 'Copy',
   'context.selectLine': 'Select Line',
+  // status bar
+  'status.wordCount': '{chars} chars / {words} words / {lines} lines',
+  'status.wordCount.chars': '{count} chars',
+  'status.wordCount.words': '{count} words',
+  'status.wordCount.lines': '{count} lines',
+  'status.aria': 'Status bar',
 } as const;
 
 export type TranslationKey = keyof typeof en;
