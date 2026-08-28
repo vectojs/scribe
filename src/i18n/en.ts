@@ -136,6 +136,14 @@ export const en = {
   'files.notes': 'Notes.md',
   'files.untitled': 'Untitled.md',
   'files.untitledPattern': 'Untitled-{n}.md',
+  // ribbon (Obsidian-style)
+  'ribbon.files': 'Files',
+  'ribbon.search': 'Search',
+  'ribbon.outline': 'Outline',
+  'ribbon.newFile': 'New file',
+  'ribbon.settings': 'Settings',
+  'ribbon.collapse': 'Collapse ribbon',
+  'ribbon.expand': 'Expand ribbon',
   // context menu (Obsidian-style)
   'context.cut': 'Cut',
   'context.copy': 'Copy',
